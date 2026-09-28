@@ -147,8 +147,16 @@ def create_app(s,store,client):
             elif kind=='search_options':
                 row=store.get(actor,value,'monitor')
                 controls=[ui.button('Add a source','manual')]
-                if actor.user==s.owner:controls.extend([ui.button('Edit search','edit_monitor',value),ui.button('New search','new_monitor')])
+                if actor.user==s.owner:controls.extend([ui.button('Edit search','edit_monitor',value),ui.button('New search','new_monitor'),ui.button('Delete search','delete_monitor',value)])
                 open_modal(body,ui.modal('Search options',[ui.para(row['name']),ui.para(row.get('interpretation') or row.get('campaign') or 'General coverage of this subject.'),ui.actions(*controls)]));return
+            elif kind=='delete_monitor':
+                store.authorize(actor,owner=True)
+                row=store.get(actor,value,'monitor')
+                open_modal(body,ui.modal('Delete search?',[
+                    ui.para(row['name']),
+                    ui.para('Delete this search, its collected results, search history and any schedule? This cannot be undone.'),
+                    ui.para('Saved board findings, perspectives and briefings stay available. Usage history is preserved.')],
+                    'delete_monitor_submit',{'id':value},submit='Delete search'));return
             elif kind=='clear_filters':store.preferences(actor,{'filter':'all','source_filter':'all','page':0,'snapshot':time.time(),'notice':''})
             elif kind=='show_new':store.preferences(actor,{'snapshot':time.time(),'page':0,'notice':''})
             elif kind=='tab_help':open_modal(body,ui.help_modal(value));return
@@ -190,6 +198,14 @@ def create_app(s,store,client):
             elif kind=='filters':open_modal(body,ui.filters_modal(p));return
             elif kind in ('inspect','inspect_board'):
                 open_modal(body,ui.detail(store.get(actor,value,'board') if kind=='inspect_board' else desk.finding_detail(actor,value),kind=='inspect_board'));return
+            elif kind in ('delete_board','delete_briefing'):
+                item_kind='board' if kind=='delete_board' else 'briefing'
+                row=desk.deletable_item(actor,value,item_kind)
+                explanation=('Remove this saved finding and its board discussion. Existing briefings keep their source snapshots and included perspectives. The original Explore finding remains.' if item_kind=='board' else
+                    'Remove this briefing and its saved previews from the app. Board findings stay. Any message already published in Slack remains in its channel.')
+                if row['visibility']=='shared':explanation+=' This removes the shared item for everyone in this workspace.'
+                open_modal(body,ui.modal('Delete saved finding?' if item_kind=='board' else 'Delete briefing?',
+                    [ui.para(row['title']),ui.para(explanation)],'delete_item_submit',{'id':value,'kind':item_kind},submit='Delete'));return
             elif kind=='run_status':open_modal(body,ui.collection_modal(store.get(actor,value,'run')));return
             elif kind=='refresh':
                 store.get(actor,value,'monitor')
@@ -240,7 +256,8 @@ def create_app(s,store,client):
             ack()
             if actor:home(actor,str(exc))
             return
-        ack()
+        if kind in ('delete_monitor_submit','delete_item_submit'):ack(response_action='clear')
+        else:ack()
         try:
             if not store.claim('form:'+actor.user+':'+body['view']['id']+':'+body['view'].get('hash','')):
                 return
@@ -249,6 +266,13 @@ def create_app(s,store,client):
                 store.preferences(actor,{'monitor':row['id'],'tab':'explore','filter':'relevant','history':'current','source_filter':'all','page':0,'snapshot':time.time(),'notice':''})
                 try:desk.submit(actor,'Researching coverage',lambda cancel:desk.research(actor,row['id'],cancel),True,key='search:'+body['view']['id']+':'+body['view'].get('hash',''))
                 except DeskError as exc:store.preferences(actor,{'notice':'Search saved. '+str(exc)+' Use Refresh when ready.'})
+            elif kind=='delete_monitor_submit':
+                desk.delete_monitor(actor,m['id'],confirmed=True)
+                store.preferences(actor,{'notice':'Search deleted. Saved board findings and briefings were kept.'})
+            elif kind=='delete_item_submit':
+                desk.delete_item(actor,m['id'],m['kind'],confirmed=True)
+                store.preferences(actor,{'tab':'board' if m['kind']=='board' else 'briefings','page':0,
+                    'notice':'Saved finding deleted. Existing briefings were kept.' if m['kind']=='board' else 'Briefing deleted from the app. Published Slack messages were kept.'})
             elif kind=='filters_submit':store.preferences(actor,{'filter':v['filter'],'source_filter':v.get('source_filter','all'),'history':v.get('history','current'),'page':0,'notice':''})
             elif kind=='manual_submit':
                 v={k:(x or '') for k,x in v.items()};v['monitor_id']=m.get('monitor_id','')
@@ -287,6 +311,7 @@ def run(s,store):
     store.purge()
     app,desk,publish=create_app(s,store,client)
     owner_actor=Actor(s.workspace,s.owner)
+    desk.adopt_native_research(owner_actor)
     desk.restore_jobs(owner_actor)
     desk.migrate_perspectives(owner_actor)
     if s.mode=='live':

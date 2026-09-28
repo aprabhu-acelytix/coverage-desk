@@ -1,4 +1,4 @@
-﻿import threading,json,time,sqlite3
+import threading,json,time,sqlite3
 from unittest.mock import Mock
 import pytest
 from coverage_desk.config import DeskError,Settings
@@ -15,6 +15,11 @@ def envelope():
   {'type':'text_result','url':'https://example.org/story','title':'Repair report','snippet':'Acme repairs face criticism.','ref_id':'turn0search0'},
   {'type':'text_result','url':'https://example.org/story?utm_source=again','title':'Repair report','snippet':'Acme repairs face criticism.','ref_id':'turn0search1'}]}],
   'result':{'interpretation':'General coverage including critical reporting.','findings':[{'source_id':'turn0search0','relevance':'relevant','campaign_relevance':'not_applicable','explanation':'Names the subject.','messages':[], 'supporting_quote':'Acme repairs face criticism.'}]}}
+
+
+def configure_analyzer(a):
+ a.plan.return_value={'interpretation':'Public coverage','queries':[{'query':'Acme repair','target':'news','purpose':'broad','rationale':'General'}]}
+ a.analyze.side_effect=lambda rows,monitor,cancel: {'findings':[{'source_id':r['id'],'relevance':'relevant','campaign_relevance':'not_applicable','explanation':'Names the subject.','messages':[]} for r in rows]}
 
 
 def test_registry_ignores_generated_urls_and_attempted_open():
@@ -34,7 +39,7 @@ def test_native_quotes_and_refs_require_observed_text():
 
 
 def test_one_owner_action_deduplicates_and_assesses_off_page(monkeypatch):
- s=Settings(mode='live',allow_live=True);st=Store(s);a=Mock();a.research.return_value=envelope();d=Desk(s,st,a);o=Actor('TEST','OWNER')
+ s=Settings(mode='live',allow_live=True);st=Store(s);a=Mock();a.discover.return_value=envelope();configure_analyzer(a);d=Desk(s,st,a);o=Actor('TEST','OWNER')
  monkeypatch.setattr('coverage_desk.public_evidence.fetch_metadata',lambda *args:{'published':None,'status':'No date'})
  m=d.monitor(o,{'name':'Acme','research_path':'Codex native web'});st.preferences(o,{'monitor':m['id'],'page':9})
  try:
@@ -43,7 +48,7 @@ def test_one_owner_action_deduplicates_and_assesses_off_page(monkeypatch):
   assert len(result['rows'])==1 and result['rows'][0]['analysis']
   assert len(result['rows'][0]['observations'])==2
   assert result['counts']=={'all':1,'relevant':0,'review':1}
-  assert a.research.call_count==1 and not a.analyze.called
+  assert a.discover.call_count==1 and a.analyze.call_count==1 and not a.research.called
   d.research(o,m['id'],threading.Event())
   assert len(finding_selection(st,o,{**st.preferences(o),'filter':'all'})['rows'])==1
   assert len(st.list(o,'finding'))==4
@@ -92,7 +97,8 @@ def test_public_fetch_rejects_private_dns_before_request(monkeypatch):
 def test_planned_workflow_runs_plan_then_unique_evidence_analysis(monkeypatch):
  s=Settings(mode='live',allow_live=True,brave_key='offline-placeholder',storage_allowed=True)
  st=Store(s);o=Actor('TEST','OWNER');a=Mock();d=Desk(s,st,a)
- m=d.monitor(o,{'name':'Acme','sources':['news','web']})
+ m=d.monitor(o,{'name':'Acme','sources':['news','web'],'research_path':'AI-planned Brave'})
+ st.db.execute('UPDATE budgets SET used=cap')
  a.plan.return_value={'interpretation':'Public subject coverage','queries':[
   {'query':'Acme news','target':'news','purpose':'broad','rationale':'General coverage'},
   {'query':'Acme repair','target':'web','purpose':'focus','rationale':'Campaign coverage'}]}
@@ -113,7 +119,7 @@ def test_planned_workflow_runs_plan_then_unique_evidence_analysis(monkeypatch):
   assert a.plan.call_count==a.analyze.call_count==1 and not a.research.called
   result=finding_selection(st,o,{'monitor':m['id'],'filter':'all','snapshot':time.time()})
   assert len(result['rows'])==1 and result['rows'][0]['analysis']
-  assert len(result['rows'][0]['observations'])==2
+  assert len(result['rows'][0]['observations'])==3
  finally:d.pool.shutdown()
 
 
@@ -122,7 +128,8 @@ def test_old_native_run_cannot_replace_edited_scope(monkeypatch):
  m=d.monitor(o,{'name':'Acme','research_path':'Codex native web'})
  def research(*args):
   d.monitor(o,{**m,'name':'Changed'},m['id']);return envelope()
- a.research.side_effect=research
+ configure_analyzer(a)
+ a.discover.side_effect=research
  monkeypatch.setattr('coverage_desk.public_evidence.fetch_metadata',lambda *a:{'published':None})
  try:
   d.research(o,m['id'],threading.Event())

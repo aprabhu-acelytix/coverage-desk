@@ -54,12 +54,31 @@ def submit(app,view):
     return app.dispatch(BoltRequest(body={'type':'view_submission','team':{'id':'TEST'},'user':{'id':'UOWNER'},
         'api_app_id':'APP','view':view},mode='socket_mode'))
 
+@pytest.mark.parametrize('kind,tab',[('board','board'),('briefing','briefings')])
+def test_delete_saved_item_confirmation_dispatch(app_env,kind,tab):
+    app,d,st,c,o=app_env
+    source=d.manual(o,{'title':'Public finding','url':'https://example.org/item','text':'Excerpt'})
+    board=d.save(o,source['id'],'shared',True)
+    item=board if kind=='board' else d.draft(o,[board['id']])
+    st.preferences(o,{'tab':tab})
+    assert 'delete_'+kind in json.dumps(ui.home(d,o))
+    action(app,'delete_'+kind,item['id'])
+    await_true(lambda:c.views_open.called)
+    view=c.views_open.call_args.kwargs['view']
+    assert view['callback_id']=='delete_item_submit' and st.get(o,item['id'])
+    View(**view).validate_json()
+    view.update(id='DELETE-'+kind,hash='v1',state={'values':{}})
+    response=submit(app,view)
+    assert response.status==200 and json.loads(response.body)['response_action']=='clear'
+    await_true(lambda:not st.list(o,kind))
+    assert st.get(o,source['id'])
+
 
 def test_create_collect_once_and_show_results(app_env):
     app,d,st,c,o=app_env
     view=form_view({'name':'Acme','campaign':'','messages':'Repair products','freshness':'pw','sources':DEFAULT_SOURCES})
     assert submit(app,view).status==200
-    await_true(lambda:len(st.list(o,'run'))==1 and d.jobs.get(o.user,{}).get('state')=='Assessed')
+    await_true(lambda:len(st.list(o,'run'))==1 and d.jobs.get(o.user,{}).get('state')=='Needs review')
     assert st.list(o,'monitor')[0]['sources']==DEFAULT_SOURCES
     assert len(finding_selection(st,o,{**st.preferences(o),'filter':'review'})['visible'])==1
     assert st.list(o,'finding')[0]['analysis']
@@ -278,13 +297,15 @@ def test_collection_empty_unsearched_and_unavailable_are_distinct():
     assert 'No indexed matches returned' in text and 'Source rate limit' in text and 'Not searched' in text
 
 
-def test_budget_exhaustion_sends_no_request_and_persists_status():
+def test_source_requests_continue_beyond_former_lifetime_cap():
     s=live_mock_settings();st=Store(s)
     for _ in range(30):st.consume('source')
     client=Mock()
+    client.get.return_value=Mock(status_code=200,json=lambda:{'web':{'results':[]}})
     rows,status=Brave(s,st,client).retrieve({'name':'Acme','sources':['instagram']},threading.Event())
-    client.get.assert_not_called()
-    assert rows==[] and not status[0]['requested'] and 'cap is reached' in status[0]['status']
+    client.get.assert_called_once()
+    assert rows==[] and status[0]['requested'] and status[0]['status']=='No matches'
+    assert st.budgets()['source']['used']==31
 
 
 def test_page_persistence_failure_keeps_prior_pages(app_env):
@@ -334,3 +355,57 @@ def test_readable_copy_has_no_encoding_replacement_separators(app_env):
     for view in views:
         text=json.dumps(view,ensure_ascii=False)
         assert ' ? ' not in text and 'team?s' not in text and 'Brave?s' not in text
+
+
+def test_delete_search_preserves_shared_work_and_usage(app_env):
+    app,d,st,c,o=app_env
+    m=d.monitor(o,{'name':'Remove me'});keep=d.monitor(o,{'name':'Keep me'})
+    f=d.manual(o,{'monitor_id':m['id'],'title':'Evidence','url':'https://example.org/a','text':'Public excerpt'})
+    b=d.save(o,f['id'],'shared',True);d.perspective(o,b['id'],'Keep my perspective')
+    draft=d.draft(o,[b['id']]);run=st.create(o,'run',{'monitor_id':m['id']})
+    schedule=st.create(o,'schedule',{'monitor_id':m['id'],'enabled':True})
+    st.consume('source');budget=st.budgets();st.preferences(o,{'monitor':m['id'],'page':3})
+    d.delete_monitor(o,m['id'],True)
+    assert st.preferences(o)['monitor']==keep['id'] and st.preferences(o)['page']==0
+    for ident in (m['id'],f['id'],run['id'],schedule['id']):
+        with pytest.raises(DeskError):st.get(o,ident)
+    assert st.get(o,b['id'])['perspectives'][0]['text']=='Keep my perspective'
+    assert st.get(o,draft['id'])['sources'][0]['url']=='https://example.org/a'
+    assert st.budgets()==budget
+    d.delete_monitor(o,keep['id'],True)
+    assert st.preferences(o)['monitor']==''
+
+
+def test_delete_search_requires_confirmation_owner_and_idle_worker(app_env):
+    app,d,st,c,o=app_env;m=d.monitor(o,{'name':'Protected'})
+    with pytest.raises(DeskError):d.delete_monitor(o,m['id'])
+    with pytest.raises(DeskError):d.delete_monitor(Actor('TEST','OTHER'),m['id'],True)
+    with pytest.raises(DeskError):d.delete_monitor(Actor('OTHER','UOWNER'),m['id'],True)
+    d.jobs[o.user]={'state':'Working','label':'Research'}
+    with pytest.raises(DeskError,match='current work'):d.delete_monitor(o,m['id'],True)
+    assert st.get(o,m['id'])
+
+
+def test_delete_search_slack_confirmation_and_replay(app_env):
+    app,d,st,c,o=app_env;m=d.monitor(o,{'name':'Delete via Slack'})
+    action(app,'delete_monitor',m['id']);await_true(lambda:c.views_open.called)
+    view=c.views_open.call_args.kwargs['view'];View(**view).validate_json()
+    assert view['callback_id']=='delete_monitor_submit'
+    assert st.get(o,m['id'])
+    view.update(id='DELETE_FORM',hash='one',state={'values':{}})
+    response=submit(app,view)
+    assert json.loads(response.body)['response_action']=='clear'
+    await_true(lambda:not st.list(o,'monitor'))
+    submit(app,view)
+    assert not st.list(o,'monitor') and st.budgets()['ai']['used']==0
+
+
+def test_old_app_limit_banner_is_not_restored_but_provider_limits_are(app_env):
+    app,d,st,c,o=app_env
+    old='Usage limit: this research path needs two AI jobs and at least two source requests. Nothing started.'
+    job=st.create(o,'job',{'state':old,'error':old,'label':'Research'})
+    d.restore_jobs(o)
+    assert 'error' not in d.jobs[o.user] and st.get(o,job['id'])['error']==old
+    st.create(o,'job',{'state':'Usage limit','error':'ChatGPT usage limit reached.','label':'Research'})
+    d.restore_jobs(o)
+    assert d.jobs[o.user]['error']=='ChatGPT usage limit reached.'

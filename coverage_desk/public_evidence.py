@@ -98,10 +98,12 @@ def fetch_metadata(url,settings,store,cancel):
                 if not chunk:break
                 chunks.append(chunk);size+=len(chunk)
             body=b''.join(chunks)
-            if len(body)>262144:raise DeskError('Public page exceeds the metadata verification size limit.')
+            truncated=len(body)>262144
+            body=body[:262144]
             # Only publication metadata retained, never a whole publisher page.
             date=publication(body.decode('utf-8',errors='replace'))
-            return {'url':url,'original_url':original,'published':date,'method':'Publisher HTML publication metadata',
+            return {'url':url,'original_url':original,'published':date,'method':'Publisher HTML publication metadata (bounded prefix)',
+                'truncated':truncated,
                 'status':'Verified publication metadata' if date else 'Publication metadata absent or ambiguous'}
         finally:connection.close()
     raise DeskError('Public source exceeded the redirect limit.')

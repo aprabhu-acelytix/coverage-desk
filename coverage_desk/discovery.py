@@ -32,7 +32,7 @@ def matches_source(row, selected):
     if selected == 'social': return bool(social)
     if selected in PLATFORMS: return social == selected
     if selected == 'manual': return row['provider'] == 'Manual contribution'
-    if selected == 'news': return row['provider'] == 'Brave news'
+    if selected == 'news': return row['provider'] == 'Brave news' or (not social and any('news' in o.get('provenance',{}).get('targets',[]) for o in row.get('observations',[row])))
     if selected == 'web': return row['provider'] in ('Brave web','Codex web') and not social
     return False
 
@@ -51,7 +51,7 @@ def finding_selection(store, actor, preferences):
     history=p.get('history','current')=='previous'
     raw=[r for r in store.list(actor,'finding') if r.get('monitor_id')==monitor['id']]
     current=lambda r:r.get('scope_key')==key and r.get('monitor_revision')==monitor['revision']
-    if history:raw=[r for r in raw if not current(r)]
+    if history:raw=[r for r in raw if not current(r) or (run and r.get('run_id') and r['run_id']!=run['id'])]
     else:raw=[r for r in raw if current(r) and (not run or r.get('run_id')==run['id'] or r['provider']=='Manual contribution')]
     run_scope=run['scope'] if run else snapshot(monitor)
     # Identity projection precedes relevance filters, totals and pagination.
@@ -66,7 +66,7 @@ def finding_selection(store, actor, preferences):
         row['observations']=[{'id':r['id'],'url':r['url'],'provider':r['provider'],'retrieved':r['retrieved'],
             'run_id':r.get('run_id'),'version_id':r.get('version_id'),'provenance':r.get('provenance',{})} for r in observations]
         row['eligibility'],row['match_reason']=eligibility(row,monitor,run_scope)
-        if history:row.update(eligibility='review',match_reason='Previous scope; not a current assessment')
+        if history:row.update(eligibility='review',match_reason='Earlier search; not a current assessment')
         projected.append(row)
     source_rows=[r for r in projected if matches_source(r,p.get('source_filter','all'))]
     stable_rows=[r for r in source_rows if r['created']<=boundary]

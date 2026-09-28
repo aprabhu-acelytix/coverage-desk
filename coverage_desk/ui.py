@@ -73,12 +73,14 @@ def author(user):
     return '<@'+user+'>' if re.fullmatch(r'[UW][A-Z0-9]+',user or '') else 'Teammate'
 
 
-def finding_row(row,board=False,duplicates=1):
+def finding_row(row,board=False,duplicates=1,can_delete=False):
     short=row['title'][:180]+('...' if len(row['title'])>180 else '')
     blocks=[section(f"*<{esc(row['url'])}|{esc(short)}>*"),context(source_line(row))]
     if board:
         blocks.append(context(f"{row['status']} · {'Workspace shared' if row['visibility']=='shared' else 'Private to you'} · {len(row['perspectives'])} perspectives"))
-        blocks.append(actions(button('View finding','inspect_board',row['id'])))
+        controls=[button('View finding','inspect_board',row['id'])]
+        if can_delete:controls.append(button('Delete','delete_board',row['id']))
+        blocks.append(actions(*controls))
     else:
         reason=row.get('match_reason') or (row.get('analysis') or {}).get('explanation') or 'Needs assessment'
         blocks.extend([context(esc(reason[:220])),actions(button('Inspect','inspect',row['id']),button('Save','save',row['id']))])
@@ -135,7 +137,7 @@ def home(desk,actor):
             if owner:controls.append(button('Refresh','refresh',selected['id'],True))
             controls.append(button('Search options','search_options',selected['id']))
             blocks.append(actions(*controls))
-            blocks.append(context(esc(selected['campaign'] or 'General coverage')+' | '+range_label(selected.get('freshness','pw'))+' | '+selected.get('research_path','AI-planned Brave')))
+            blocks.append(context(esc(selected['campaign'] or 'General coverage')+' | '+range_label(selected.get('freshness','pw'))+' | '+selected.get('research_path','Codex native web')))
         else:
             blocks.extend([para('Find and assess public coverage, then save useful findings for your team.'),actions(button('Find coverage','new_monitor',primary=True))] if owner else
                           [para('Open Team board to review shared findings and add your perspective.')])
@@ -145,7 +147,7 @@ def home(desk,actor):
                 (f"Needs review ({counts['review']})",'review'),(f"All collected ({counts['all']})",'all')],p.get('filter','relevant')),
                 button('Filters','filters')))
             if p.get('history')=='previous' or p.get('source_filter','all')!='all':
-                blocks.append(context(('Previous scope | ' if p.get('history')=='previous' else '')+
+                blocks.append(context(('Earlier searches | ' if p.get('history')=='previous' else '')+
                     {value:label for label,value in FILTER_CHOICES}.get(p.get('source_filter'),'All sources')))
         run=selection['run']
         if busy and (not job.get('monitor_id') or job['monitor_id']==p.get('monitor')):
@@ -157,12 +159,13 @@ def home(desk,actor):
         for row in selection['visible']:blocks.extend(finding_row(row))
         if not rows and selected:
             blocks.append(para('No current relevant findings yet. Needs review includes unassessed sources and uncertain publication dates; All collected preserves the complete retrieved set.' if p.get('filter','relevant')=='relevant' else
-                'No findings match this view. Change filters, inspect previous scope, or refresh.'))
+                'No findings match this view. Change filters, inspect earlier searches, or refresh.'))
         blocks.extend(pagination(page,len(rows)))
         if run:
-            pending=sum(not r.get('analysis') for r in finding_selection(st,actor,{**p,'filter':'all','source_filter':'all'})['rows'])
+            from .research import needs_publication_check
+            pending=sum(not r.get('analysis') or needs_publication_check(r,selected) for r in finding_selection(st,actor,{**p,'filter':'all','source_filter':'all'})['rows'])
             controls=[button('Search details','run_status',run['id'])]
-            if owner and pending and not busy:controls.append(button(f'Assess {pending} pending','continue_research',selected['id']))
+            if owner and pending and not busy:controls.append(button(f'Check {pending} pending','continue_research',selected['id']))
             blocks.append(actions(*controls))
     elif tab=='board':
         rows=st.list(actor,'board');bf=p.get('board_filter','all')
@@ -171,7 +174,7 @@ def home(desk,actor):
         if owner and rows:controls.append(button('Create briefing','new_briefing',primary=True))
         blocks.append(actions(*controls))
         page=min(max(0,p['page']),max(0,(len(rows)-1)//5))
-        for row in rows[page*5:page*5+5]:blocks.extend(finding_row(row,board=True))
+        for row in rows[page*5:page*5+5]:blocks.extend(finding_row(row,board=True,can_delete=row['owner']==actor.user or owner))
         if not rows:blocks.append(para('Save a finding from Explore to discuss it here. Choose private or workspace shared when saving.'))
         blocks.extend(pagination(page,len(rows)))
     else:
@@ -184,6 +187,7 @@ def home(desk,actor):
             if d['status']=='Draft':
                 elems.append(button('Edit','edit_draft',d['id']))
                 if owner:elems.append(button('Preview & publish','preview',d['id']))
+            if d['owner']==actor.user or owner:elems.append(button('Delete','delete_briefing',d['id']))
             blocks.extend([actions(*elems),{'type':'divider'}])
         if not rows:blocks.append(para('Select saved findings on Team board to prepare an editable, source-linked briefing.'))
         blocks.extend(pagination(page,len(rows)))
@@ -222,7 +226,7 @@ def monitor_modal(m=None,expanded=False):
         input_select('freshness','Time range',[('Past day','pd'),('Past week','pw'),('Past month','pm'),('Past year','py'),('Any time','any')],m.get('freshness','pw') if m.get('freshness','pw') in ('pd','pw','pm','py') else 'any'),source_input,
         actions(button('Fewer options' if expanded else 'More options','monitor_options','hide' if expanded else 'show'))]
     if expanded:
-        blocks.extend([input_select('research_path','Research path',[('AI-planned Brave (recommended)','AI-planned Brave'),('Codex native web (limited evidence)','Codex native web')],m.get('research_path','AI-planned Brave')),
+        blocks.extend([input_select('research_path','Research path',[('Codex web research','Codex native web'),('AI-planned Brave','AI-planned Brave')],m.get('research_path','Codex native web')),
             input_text('aliases','Other names','\n'.join(m.get('aliases',[])),True,True,400,hint='Optional nicknames or abbreviations, one per line.'),
             input_text('domains','Official website or handles',m.get('domains',''),True,False,500,hint='Helps AI identify the right subject; does not restrict source discovery.'),
             input_text('interpretation','What should this search include?',m.get('interpretation',''),True,True,500,hint='Optional editorial scope. Leave blank for general coverage of the subject.'),
@@ -238,7 +242,7 @@ def monitor_modal(m=None,expanded=False):
 def filters_modal(p):
     return modal('Filter findings',[input_select('source_filter','Platform or source',FILTER_CHOICES,p.get('source_filter','all')),
         input_select('filter','Assessment',[(assessment_label(k),k) for k in ('relevant','review','all')],p.get('filter','relevant')),
-        input_select('history','Scope',[('Current scope','current'),('Previous scope','previous')],p.get('history','current')),
+        input_select('history','Collection',[('Current search','current'),('Earlier searches','previous')],p.get('history','current')),
         context('Filters only change this view. No searches run and no findings are removed.')],'filters_submit',submit='Apply filters')
 
 
@@ -266,7 +270,9 @@ def detail(row,board=False,tab='overview',page=0):
             for m in a['messages']:
                 label={'supported':'Supported in available text','contradicted':'Contradicted in available text','not_observed_in_available_text':'Not found in available text','insufficient_evidence':'Not enough evidence'}.get(m['label'],m['label'].replace('_',' ').capitalize())
                 content.append(para(m['message']+'\n'+label+' · '+m['explanation']))
-                for e in m['evidence']:content.append(para('Source quote: '+chr(8220)+e['quote']+chr(8221)))
+                for e in m['evidence']:
+                    origin='Excerpt' if e['quote'] in row['text'] else 'Headline'
+                    content.append(para(origin+' quote: '+chr(8220)+e['quote']+chr(8221)))
             content.append(context('AI interpretations need review. Matching quotes verify the words, not the conclusion.'))
     elif tab=='source':
         content=[header('Source details'),para('Discovery: '+('Found through Brave Web' if row['provider']=='Brave web' else row['provider'])),
@@ -313,13 +319,17 @@ def collection_modal(run):
             para(f"{run.get('unique_count',0)} unique findings from {run['count']} observations. {run.get('assessed_count',0)} assessed; {run.get('pending_count',0)} pending."),
             para('Dates: '+str(run['scope']['window']['start'] or 'Any time')+' to '+run['scope']['window']['end']),
             para('Only tool-observed excerpts support assessments. Missing publication dates stay in Needs review. Requested source categories guide search; this is not an exhaustive search of every platform.')]
-        for event in run.get('observed_actions',[]):
+        for status in run.get('statuses',[]):
+            detail=str(status['results'])+' returned'
+            if status['target'] in PLATFORMS:detail+='; '+str(status.get('platform_matches',0))+' on this platform'
+            blocks.append(para(source_label(status['target'])+': '+status['status']+' ('+detail+')\n'+status['query']))
+        for event in ([] if run.get('statuses') else run.get('observed_actions',[])):
             a=event.get('action') or {}
             text=event.get('query') or a.get('url') or 'Public web action'
             if a.get('queries'):text='; '.join(a['queries'])
             blocks.append(para(str(text)+'\n'+str(event.get('returned_results',0))+' observed source results'))
         if run.get('error'):blocks.append(para(run['error']))
-        blocks.append(context('Three source slots reserved per research turn, including one cancellation-boundary slot. Observable actions do not disclose the provider\'s internal request count. No automatic retries.'))
+        blocks.append(context('One source slot reserved per planned search plus one cancellation-boundary slot. Observable actions do not disclose the provider\'s internal request count. No automatic retries.'))
         return modal('Search details',blocks)
     blocks=[header(run.get('outcome','Collection details')),para(f"{run['count']} findings saved · Checked {time.strftime('%d %b, %H:%M UTC',time.gmtime(run['checked']))}")]
     if run.get('path')=='AI-planned Brave':
@@ -377,7 +387,8 @@ def briefing_message(d):
 
 def settings_modal(desk,actor):
     s=desk.s
-    blocks=[header('Sources & permissions'),para('Brave News / Web: '+('Connected configuration · storage permission supplied by owner, not independently verified.' if s.brave_key and s.storage_allowed else 'Awaiting key or storage permission.')),
+    blocks=[header('Sources & permissions'),para('Codex web research: Default. Public web discovery through the owner’s managed ChatGPT connection. Only the owner starts research.'),
+        para('Optional Brave News / Web: '+('Connected configuration · storage permission supplied by owner, not independently verified.' if s.brave_key and s.storage_allowed else 'Requires a key and owner-supplied storage permission. Not needed for Codex web research.')),
         para('Manual contributions: Available. Submitted URLs are never fetched automatically.'),
         para('YouTube Data API: '+('Configured; metadata integration pending permitted-use review.' if s.youtube_key else 'Not connected. YouTube web discovery is available separately.')),
         para('X · Instagram · TikTok · Reddit: Not integrated. Social links found by Web Search are web-discovered only.'),
@@ -386,7 +397,7 @@ def settings_modal(desk,actor):
         header('Scheduling'),para('Optional source-refresh previews. Disabled until configured locally and explicitly enabled by the owner. Never scheduled AI or automatic channel posts.')]
     if actor.user==s.owner:
         usage=desk.store.budgets()
-        blocks.append(para(f"Source requests: {usage['source']['used']} of {usage['source']['cap']} · AI jobs: {usage['ai']['used']} of {usage['ai']['cap']}"))
+        blocks.append(para(f"Recorded usage: {usage['source']['used']} source slots · {usage['ai']['used']} AI jobs. No lifetime app cap. Per-search safeguards and provider limits still apply."))
         blocks.append(para('AI connection: '+desk.runtime_state))
         blocks.append(actions(button('Check AI connection','runtime_check'),button('Configure schedule','schedule')))
     return modal('Settings & sources',blocks)

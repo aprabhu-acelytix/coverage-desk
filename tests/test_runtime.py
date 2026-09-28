@@ -117,3 +117,12 @@ def test_only_research_accepts_observed_web_actions():
     with pytest.raises(RuntimeError):validate_item(item,research=False)
     for url in ('file:///C:/secrets','http://127.0.0.1/x','http://169.254.169.254/x','http://localhost/x'):
         with pytest.raises(RuntimeError):validate_item({**item,'action':{'type':'openPage','url':url}},research=True)
+
+@pytest.mark.parametrize('operation',['research','native_probe'])
+def test_native_usage_is_recorded_beyond_old_caps(operation):
+    s=Settings(mode='live',allow_live=True);st=Store(s);a=CodexAnalyzer(s,st)
+    st.db.execute('UPDATE budgets SET used=cap')
+    a.status=Mock(return_value={'state':'Ready'});a.call=Mock(return_value={})
+    getattr(a,operation)({},threading.Event())
+    assert a.call.call_count==1
+    assert st.budgets()['source']['used']==33 and st.budgets()['ai']['used']==11

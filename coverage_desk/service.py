@@ -46,7 +46,7 @@ class Desk:
             'freshness':freshness,'sources':list(dict.fromkeys(sources)),
             'interpretation':values.get('interpretation','')[:500],'revision':time.time()}
         data['scope_key']=scope_key(data)
-        path=values.get('research_path','AI-planned Brave')
+        path=values.get('research_path','Codex native web')
         if path not in ('AI-planned Brave','Codex native web'):raise DeskError('Unknown research path.')
         data['research_path']=path
         data['scope_key']=scope_key(data)
@@ -54,6 +54,83 @@ class Desk:
             self.store.get(actor,ident,'monitor')
             return self.store.update(actor,ident,data,owner_only=True)
         return self.store.create(actor,'monitor',data,expires=time.time()+10*365*86400)
+
+    def adopt_native_research(self,actor):
+        """Apply the owner's requested provider change once, without revising evidence scopes."""
+        self.store.authorize(actor,owner=True)
+        with self.store.transaction():
+            if not self.store.claim('owner-request:native-research-default:v2'):return
+            for monitor in self.store.list(actor,'monitor'):
+                if monitor['owner']!=actor.user:continue
+                monitor['research_path']='Codex native web'
+                self.store.update(actor,monitor['id'],monitor,owner_only=True)
+            self.store.preferences(actor,{'notice':'Searches now use Codex web research. Search options lets you choose Brave explicitly; existing findings and shared work are preserved.'})
+
+    def delete_monitor(self,actor,ident,confirmed=False):
+        self.store.authorize(actor,owner=True)
+        if not confirmed:raise DeskError('Confirm deletion of this search first.')
+        with self.guard, self.store.transaction():
+            if self.jobs.get(actor.user,{}).get('state') in ('Queued','Working'):
+                raise DeskError('Wait for the current work to finish, or cancel it, before deleting a search.')
+            monitor=self.store.get(actor,ident,'monitor')
+            if monitor['owner']!=actor.user:raise DeskError('Only the search creator can delete it.')
+            # Board/briefing snapshots are independent; keep their IDs and evidence.
+            records=self.store.db.execute('SELECT id,kind,data FROM objects WHERE workspace=? AND owner=?',
+                (actor.workspace,actor.user)).fetchall()
+            ids=[r['id'] for r in records if r['id']==ident or
+                (r['kind'] in ('finding','run','schedule','job') and json.loads(r['data']).get('monitor_id')==ident)]
+            source_ids=set(ids)
+            ids.extend(r['id'] for r in records if r['kind']=='analysis_cache' and any(
+                f.get('source_id') in source_ids for f in json.loads(r['data']).get('result',{}).get('findings',[])))
+            self.store.db.executemany('DELETE FROM objects WHERE id=?',[(i,) for i in ids])
+            if self.store.db.execute("SELECT 1 FROM sqlite_master WHERE name='article_aliases'").fetchone():
+                self.store.db.executemany('DELETE FROM article_aliases WHERE observation_id=?',[(i,) for i in ids])
+            preferences=self.store.preferences(actor)
+            if preferences.get('monitor')==ident:
+                remaining=self.store.list(actor,'monitor')
+                self.store.preferences(actor,{'monitor':remaining[0]['id'] if remaining else '',
+                    'page':0,'snapshot':time.time(),'history':'current'})
+            if self.jobs.get(actor.user,{}).get('monitor_id')==ident:self.jobs.pop(actor.user,None)
+
+    def deletable_item(self,actor,ident,kind):
+        if kind not in ('board','briefing'):raise DeskError('This item cannot be deleted here.')
+        row=self.store.get(actor,ident,kind)
+        if row['owner']!=actor.user and not (actor.user==self.s.owner and row['visibility']=='shared'):
+            raise DeskError('Only the creator or workspace app owner can delete this shared item.')
+        return row
+
+    def delete_item(self,actor,ident,kind,confirmed=False):
+        if not confirmed:raise DeskError('Confirm deletion first.')
+        with self.guard,self.store.transaction():
+            row=self.deletable_item(actor,ident,kind)
+            if any(j.get('state') in ('Queued','Working') for j in self.jobs.values()):
+                raise DeskError('Wait for current work to finish before deleting saved items.')
+            affected={ident} if kind=='briefing' else set()
+            if kind=='board':
+                # Referential maintenance includes other users' private drafts,
+                # without returning their contents or existence to the deleter.
+                drafts=self.store.db.execute("SELECT id,data FROM objects WHERE workspace=? AND kind='briefing'",(actor.workspace,)).fetchall()
+                for saved in drafts:
+                    draft=json.loads(saved['data'])
+                    if ident not in draft['board_ids']:continue
+                    # Preserve only the evidence needed by an already-created briefing.
+                    fields=('title','full_title','url','text','provider','access','expires','hash','canonical','published','date_kind')
+                    draft.setdefault('source_snapshots',{})[ident]={k:row[k] for k in fields if k in row}
+                    if draft['status']=='Draft':draft['revision']+=1
+                    self.store.db.execute('UPDATE objects SET data=? WHERE id=?',(json.dumps(draft),saved['id']))
+                    affected.add(saved['id'])
+            previews=self.store.db.execute("SELECT id,data FROM objects WHERE workspace=? AND kind='preview'",(actor.workspace,)).fetchall()
+            for preview in previews:
+                if json.loads(preview['data']).get('draft_id') in affected:
+                    self.store.db.execute('DELETE FROM objects WHERE id=?',(preview['id'],))
+            self.store.db.execute('DELETE FROM objects WHERE id=?',(ident,))
+            self.store.preferences(actor,{'page':0})
+
+    def briefing_source(self,actor,draft,ident):
+        snapshot=draft.get('source_snapshots',{}).get(ident)
+        source=snapshot if snapshot is not None else self.store.get(actor,ident,'board')
+        self.allowed_source(source)
+        return source
 
     def submit(self,actor,label,callback,owner=False,key=None):
         self.store.authorize(actor,owner=owner)
@@ -148,158 +225,158 @@ class Desk:
             raise
 
     def research(self,actor,monitor_id,cancel):
-        """One explicit owner action; independent of the current results page."""
+        """Owner-led planning, observed discovery, then isolated evidence assessment."""
         self.store.authorize(actor,owner=True)
-        self.progress(actor,{'monitor_id':monitor_id,'stage':'Checking research capacity'})
         if self.s.mode=='demo':
             self.refresh(actor,monitor_id,cancel)
             return self.continue_research(actor,monitor_id,cancel)
-        if self.store.get(actor,monitor_id,'monitor').get('research_path','AI-planned Brave')=='AI-planned Brave':
-            return self.planned_research(actor,monitor_id,cancel)
-        require_live(self.s)
+        monitor=self.store.get(actor,monitor_id,'monitor')
+        return self.planned_research(actor,monitor_id,cancel,monitor.get('research_path','Codex native web'))
+
+    def planned_research(self,actor,monitor_id,cancel,path='AI-planned Brave'):
+        from dataclasses import replace
+        from .research import registry,search_tasks,search_statuses,event_queries
+        from .discovery import finding_selection
+        self.store.authorize(actor,owner=True);require_live(self.s)
         if not self.analyzer:raise DeskError('AI unavailable. Run the runtime status helper.')
-        from .research import registry,assessments,remap
+        if path=='AI-planned Brave' and (not self.s.brave_key or not self.s.storage_allowed):
+            raise DeskError('AI-planned Brave requires a configured Brave key and owner-supplied storage permission.')
         monitor=self.store.get(actor,monitor_id,'monitor');scope=snapshot(monitor)
-        run=self.store.create(actor,'run',{'monitor_id':monitor_id,'scope':scope,'path':'Codex native web',
-            'mode':self.s.mode,'statuses':[],'count':0,'checked':time.time(),'outcome':'Researching',
-            'enabled_sources':monitor['sources'],'reserved_source_slots':3})
-        self.progress(actor,{'stage':'Understanding scope and searching','monitor_id':monitor_id,'run_id':run['id'],'retained':0})
-        saved=[]
-        try:
-            envelope=self.analyzer.research(scope,cancel)
-            rows=registry(envelope)
-            checked,error=assessments(envelope,rows,monitor['messages'])
-            if envelope.get('interrupted'):error=envelope['interrupted']
-            # Verify one promising article's date through bounded public metadata
-            # retrieval. Model-authored dates never enter the eligibility gate.
-            target=next((r for r in rows if checked.get(r.get('source_ref'),{}).get('relevance')=='relevant' and not r.get('published')),None)
-            if target and not cancel.is_set():
-                from .public_evidence import fetch_metadata
-                try:
-                    metadata=fetch_metadata(target['url'],self.s,self.store,cancel)
-                    for row in rows:
-                        if row['canonical']==target['canonical']:
-                            row['provenance']['publication_check']=metadata
-                            if metadata['published']:row.update(published=metadata['published'],date_kind='publication')
-                except Exception as exc:
-                    target['provenance']['publication_check']={'status':str(exc) if isinstance(exc,DeskError) else 'Public metadata unavailable; no access bypass attempted.'}
+        run=self.store.create(actor,'run',{'monitor_id':monitor_id,'scope':scope,'path':path,'mode':self.s.mode,
+            'statuses':[],'count':0,'checked':time.time(),'outcome':'Researching','pages_cap':1,'calls_cap':self.s.calls,
+            'enabled_sources':monitor['sources']})
+        self.progress(actor,{'stage':'Understanding the search','monitor_id':monitor_id,'run_id':run['id'],'retained':0})
+        saved=[];statuses=[]
+        def persist(rows):
             for row in rows:
-                row.update(monitor_id=monitor_id,monitor_revision=monitor['revision'],scope_key=scope['key'],
-                    scope_id=scope['id'],run_id=run['id'])
+                row.update(monitor_id=monitor_id,monitor_revision=monitor['revision'],
+                    scope_key=scope['key'],scope_id=scope['id'],run_id=run['id'])
                 saved.append(self.store.create(actor,'finding',row))
-            # A changed scope remains inspectable as history, never current results.
-            current=self.store.get(actor,monitor_id,'monitor')['revision']==monitor['revision']
-            cached={r.get('analysis_key'):r['analysis'] for r in self.store.list(actor,'finding')
-                if r.get('analysis_key') and r.get('analysis') and r['owner']==actor.user}
-            for row in saved:
-                a=checked.get(row.get('source_ref')) or cached.get(self.analysis_key(actor,row,monitor))
-                if a and not cancel.is_set():
-                    row.update(analysis=remap(a,row['id']),analysis_scope_key=scope['key'],
-                        analysis_scope_id=scope['id'],analysis_status='AI assessed',analysis_key=self.analysis_key(actor,row,monitor))
-                    self.store.update(actor,row['id'],row)
-            unique={r['canonical'] for r in saved}
-            assessed={r['canonical'] for r in saved if r.get('analysis')}
-            outcome='Cancelled' if cancel.is_set() else 'Previous scope' if not current else 'Needs review' if error or unique-assessed else 'Assessed'
-            run.update(count=len(saved),unique_count=len(unique),assessed_count=len(assessed),pending_count=len(unique-assessed),
-                outcome=outcome,interpretation=envelope.get('result',{}).get('interpretation',''),
-                observed_actions=[{'id':e.get('id'),'query':e.get('query'),'action':e.get('action'),
-                    'returned_results':len(e.get('results') or [])} for e in envelope.get('observed',[])],
-                error=error,limited=envelope.get('limited',False),checked=time.time())
+            run.update(count=len(saved),statuses=statuses);self.store.update(actor,run['id'],run)
+        try:
+            plan=self.analyzer.plan(monitor,cancel,max_queries=3)
+            tasks=search_tasks(monitor,plan,scope)
+            run.update(interpretation=plan['interpretation'],plan=plan['queries'],tasks=tasks)
             self.store.update(actor,run['id'],run)
-            self.progress(actor,{'stage':'Evidence assessed','outcome':outcome,'retained':len(unique)})
-            if current:self.store.preferences(actor,{'snapshot':time.time(),'page':0,'history':'current','notice':''})
+            if path=='Codex native web':
+                self.progress(actor,{'stage':'Searching selected sources','retained':0})
+                envelope=self.analyzer.discover(scope,tasks[:self.s.calls],cancel)
+                statuses=search_statuses(tasks,envelope.get('observed',[]))
+                rows=registry(envelope)
+                for row in rows:
+                    event=next((e for e in envelope.get('observed',[]) if e.get('id')==row['provenance'].get('event_id')), {})
+                    queries=event_queries(event)
+                    row['provenance']['query']='; '.join(queries)
+                    row['provenance']['targets']=[t['target'] for t in tasks if any(t['query'].lower().split()==q.lower().split() for q in queries)]
+                    row['provenance']['task_order']=next((i for i,t in enumerate(tasks) if t['query'] in queries),len(tasks))
+                persist(rows)
+                run.update(observed_actions=[{'id':e.get('id'),'query':e.get('query'),'action':e.get('action'),
+                    'returned_results':len(e.get('results') or [])} for e in envelope.get('observed',[])],
+                    error=envelope.get('interrupted',''),limited=envelope.get('limited',False),reserved_source_slots=min(len(tasks),self.s.calls)+1)
+            else:
+                provider=Brave(replace(self.s,calls=1,pages=1,results=min(10,self.s.results)),self.store)
+                def save_page(rows,updates):
+                    for rank,row in enumerate(rows):
+                        row['date_kind']='page_age'
+                        row['provenance'].update(task_order=index,result_rank=rank,targets=[query['target']])
+                    persist(rows)
+                for index,query in enumerate(tasks):
+                    if cancel.is_set() or index>=self.s.calls:
+                        statuses.append({**query,'requested':False,'results':0,'status':'Not searched'})
+                        continue
+                    self.progress(actor,{'stage':'Searching '+query['target'],'retained':len(saved)})
+                    _,updates=provider.retrieve({**monitor,'sources':[query['target']],
+                        '_planned_query':query['query'],'_planned_purpose':query['purpose']},cancel,on_page=save_page)
+                    statuses.extend(updates)
+            run.update(statuses=statuses);self.store.update(actor,run['id'],run)
+            current=self.store.get(actor,monitor_id,'monitor')['revision']==monitor['revision']
+            if current and not cancel.is_set():
+                # Two bounded batches across the run, independent of the visible page.
+                attempted=set()
+                for batch_number in range(2):
+                    self.progress(actor,{'stage':f'Assessing evidence (batch {batch_number+1} of 2)','retained':len({r['canonical'] for r in saved})})
+                    if cancel.is_set():break
+                    try:batch=self.continue_research(actor,monitor_id,cancel,verify_dates=False,exclude_ids=attempted)
+                    except DeskError as exc:
+                        run['error']=str(exc)
+                        break
+                    if not batch:break
+                    attempted.update(batch)
+                if not cancel.is_set():self.verify_dates(actor,monitor_id,cancel)
+            current=self.store.get(actor,monitor_id,'monitor')['revision']==monitor['revision']
+            projection=finding_selection(self.store,actor,{'monitor':monitor_id,'filter':'all','snapshot':time.time()})
+            rows=projection['rows'] if current else saved
+            assessed=sum(bool(r.get('analysis')) for r in rows)
+            run.update(count=len(saved),unique_count=len({r['canonical'] for r in saved}),assessed_count=assessed,
+                pending_count=len(rows)-assessed,counts=projection['counts'],checked=time.time(),
+                outcome='Cancelled' if cancel.is_set() else 'Previous scope' if not current else
+                    'Needs review' if projection['counts']['review'] or run.get('error') else 'Assessed')
+            self.store.update(actor,run['id'],run)
+            self.progress(actor,{'outcome':run['outcome'],'stage':'Search complete','retained':run['unique_count']})
+            self.store.preferences(actor,{'snapshot':time.time(),'page':0,'history':'current','notice':''})
             return saved
         except Exception:
             run.update(count=len(saved),outcome='Partial results' if saved else 'Unavailable',checked=time.time())
             self.store.update(actor,run['id'],run)
             self.progress(actor,{'outcome':run['outcome'],'retained':len(saved)})
-            raise
-
-    def planned_research(self,actor,monitor_id,cancel):
-        from dataclasses import replace
-        from .public_evidence import fetch_metadata
-        self.store.authorize(actor,owner=True);require_live(self.s)
-        if not self.analyzer:raise DeskError('AI unavailable. Run the runtime status helper.')
-        if not self.s.brave_key or not self.s.storage_allowed:raise DeskError('AI-planned Brave requires a configured Brave key and owner-supplied storage permission.')
-        usage=self.store.budgets()
-        if usage['ai']['cap']-usage['ai']['used']<2 or usage['source']['cap']-usage['source']['used']<2:
-            raise DeskError('Usage limit: this research path needs two AI jobs and at least two source requests. Nothing started.')
-        monitor=self.store.get(actor,monitor_id,'monitor');scope=snapshot(monitor)
-        run=self.store.create(actor,'run',{'monitor_id':monitor_id,'scope':scope,'path':'AI-planned Brave','mode':self.s.mode,
-            'statuses':[],'count':0,'checked':time.time(),'outcome':'Researching','calls_cap':2,'pages_cap':1,'enabled_sources':monitor['sources']})
-        self.progress(actor,{'stage':'Understanding the search','monitor_id':monitor_id,'run_id':run['id'],'retained':0})
-        saved=[];statuses=[]
-        try:
-            plan=self.analyzer.plan(monitor,cancel,max_queries=2)
-            run.update(interpretation=plan['interpretation'],plan=plan['queries']);self.store.update(actor,run['id'],run)
-            provider=Brave(replace(self.s,calls=1,pages=1,results=min(10,self.s.results)),self.store)
-            def save_page(rows,updates):
-                for row in rows:
-                    # Brave page_age can mean last modified; it is not verified publication.
-                    row.update(date_kind='page_age',monitor_id=monitor_id,monitor_revision=monitor['revision'],
-                        scope_key=scope['key'],scope_id=scope['id'],run_id=run['id'])
-                    saved.append(self.store.create(actor,'finding',row))
-                run.update(count=len(saved),statuses=statuses+updates);self.store.update(actor,run['id'],run)
-            for query in sorted(plan['queries'],key=lambda q:0 if (q['purpose']=='focus' and monitor.get('campaign')) or (q['purpose']=='broad' and not monitor.get('campaign')) else 1):
-                if cancel.is_set():break
-                self.progress(actor,{'stage':'Searching: '+query['purpose'],'retained':len(saved)})
-                _,updates=provider.retrieve({**monitor,'sources':[query['target']],
-                    '_planned_query':query['query'],'_planned_purpose':query['purpose']},cancel,on_page=save_page)
-                statuses.extend(updates)
-            unique=list({r['canonical']:r for r in saved}.values())
-            # Verify at most two publication dates, with independent request charging.
-            for row in unique[:2]:
-                if cancel.is_set():break
-                try:
-                    metadata=fetch_metadata(row['url'],self.s,self.store,cancel)
-                    row['provenance']['publication_check']=metadata
-                    if metadata['published']:row.update(published=metadata['published'],date_kind='publication',version_id=version({**row,'published':metadata['published'],'date_kind':'publication'}))
-                except Exception as exc:
-                    row['provenance']['publication_check']={'status':str(exc) if isinstance(exc,DeskError) else 'Public metadata unavailable; no access bypass attempted.'}
-                self.store.update(actor,row['id'],row)
-            if self.store.get(actor,monitor_id,'monitor')['revision']!=monitor['revision']:
-                raise DeskError('Search changed during collection. Earlier sources remain in previous-scope history.')
-            self.progress(actor,{'stage':'Assessing unique evidence','retained':len(unique)})
-            if not cancel.is_set():self.continue_research(actor,monitor_id,cancel)
-            from .discovery import finding_selection
-            projection=finding_selection(self.store,actor,{'monitor':monitor_id,'filter':'all','snapshot':time.time()})
-            assessed=sum(bool(r.get('analysis')) for r in projection['rows'])
-            run.update(count=len(saved),unique_count=len(unique),assessed_count=assessed,pending_count=len(unique)-assessed,
-                outcome='Cancelled' if cancel.is_set() else 'Needs review' if assessed<len(unique) else 'Assessed',
-                statuses=statuses,checked=time.time())
-            self.store.update(actor,run['id'],run)
-            self.progress(actor,{'outcome':run['outcome'],'stage':'Evidence assessed','retained':len(unique)})
-            self.store.preferences(actor,{'snapshot':time.time(),'page':0,'history':'current'})
-            return saved
-        except Exception:
-            run.update(count=len(saved),outcome='Partial results' if saved else 'Unavailable',checked=time.time())
-            self.store.update(actor,run['id'],run);self.progress(actor,{'outcome':run['outcome'],'retained':len(saved)})
             self.store.preferences(actor,{'snapshot':time.time()})
             raise
 
+    def verify_dates(self,actor,monitor_id,cancel):
+        from .public_evidence import fetch_metadata
+        from .discovery import finding_selection
+        from .research import needs_publication_check,evidence_priority
+        from .discovery import platform
+        monitor=self.store.get(actor,monitor_id,'monitor')
+        rows=finding_selection(self.store,actor,{'monitor':monitor_id,'filter':'all','snapshot':time.time()})['rows']
+        candidates=[r for r in rows if needs_publication_check(r,monitor)]
+        candidates.sort(key=lambda r:(bool(platform(r['url'])),evidence_priority(r)))
+        started=time.monotonic()
+        for index,row in enumerate(candidates[:5]):
+            if cancel.is_set() or time.monotonic()-started>50:break
+            self.progress(actor,{'stage':f'Checking publication dates ({index+1}/{min(5,len(candidates))})'})
+            try:metadata=fetch_metadata(row['url'],self.s,self.store,cancel)
+            except Exception as exc:
+                metadata={'published':None,'status':str(exc) if isinstance(exc,DeskError) else 'Public metadata unavailable; no access bypass attempted.'}
+            # Apply metadata to all current observations of this article; preserve evidence and assessments.
+            for item in self.store.list(actor,'finding'):
+                if item.get('run_id')!=row.get('run_id') or item['canonical']!=row['canonical']:continue
+                item.setdefault('provenance',{})['publication_check']=metadata
+                if metadata.get('published'):
+                    item.update(published=metadata['published'],date_kind='publication')
+                    item['version_id']=version(item)
+                    if item.get('analysis'):item['analysis_key']=self.analysis_key(actor,item,monitor)
+                self.store.update(actor,item['id'],item)
+
     def analysis_key(self,actor,row,monitor):
         return digest(json.dumps({'article':row['canonical'],'version':version(row),'scope':scope_key(monitor),
-            'workspace':actor.workspace,'owner':actor.user,'model':self.s.model,'mode':self.s.mode,'analysis_version':3},sort_keys=True))
+            'workspace':actor.workspace,'owner':actor.user,'model':self.s.model,'mode':self.s.mode,'analysis_version':4},sort_keys=True))
 
-    def continue_research(self,actor,monitor_id,cancel):
+    def continue_research(self,actor,monitor_id,cancel,verify_dates=True,exclude_ids=None):
         from .discovery import finding_selection
         self.store.authorize(actor,owner=True)
         monitor=self.store.get(actor,monitor_id,'monitor')
         rows=finding_selection(self.store,actor,{'monitor':monitor_id,'filter':'all','snapshot':time.time()})['rows']
-        pending=[r for r in rows if not r.get('analysis') or r.get('analysis_scope_key')!=scope_key(monitor)]
+        pending=[r for r in rows if (not r.get('analysis') or r.get('analysis_scope_key')!=scope_key(monitor)) and r['id'] not in (exclude_ids or set())]
+        from .research import evidence_priority
+        pending.sort(key=evidence_priority)
         # Deterministic bounded batch across the entire run, never the visible page.
         batch=[];size=0
         for row in pending:
             item_size=len(json.dumps(row['text']))+len(row['title'])+300
             if len(batch)>=self.s.ai_items or size+item_size>self.s.input_job-6000:break
             self.allowed_source(row);batch.append(row['id']);size+=item_size
-        if batch:self.analyze(actor,monitor_id,batch,cancel)
+        if batch:self.analyze(actor,monitor_id,batch,cancel,partial=True)
+        if verify_dates and self.s.mode=='live' and not cancel.is_set():self.verify_dates(actor,monitor_id,cancel)
+        selection=finding_selection(self.store,actor,{'monitor':monitor_id,'filter':'all','snapshot':time.time()})
+        remaining=sum(not r.get('analysis') for r in selection['rows'])
+        outcome='Needs review' if selection['counts']['review'] else 'Assessed'
         runs=[r for r in self.store.list(actor,'run') if r['monitor_id']==monitor_id and r.get('scope',{}).get('key')==scope_key(monitor)]
         if runs:
-            run=runs[0];run.update(pending_count=max(0,len(pending)-len(batch)),outcome='Needs review' if len(pending)>len(batch) else 'Assessed')
+            run=runs[0];run.update(pending_count=remaining,assessed_count=len(selection['rows'])-remaining,counts=selection['counts'],outcome=outcome)
             self.store.update(actor,run['id'],run)
         self.store.preferences(actor,{'snapshot':time.time(),'page':0})
-        self.progress(actor,{'outcome':'Needs review' if len(pending)>len(batch) else 'Assessed','stage':'Evidence assessed'})
+        self.progress(actor,{'outcome':outcome,'stage':'Evidence assessed'})
         return batch
 
     def manual(self,actor,values):
@@ -323,7 +400,7 @@ class Desk:
         if row['provider'].startswith('YouTube'):
             raise DeskError('YouTube metadata is not enabled for AI or briefing export.')
 
-    def analyze(self,actor,monitor_id,ids,cancel):
+    def analyze(self,actor,monitor_id,ids,cancel,partial=False):
         self.store.authorize(actor,owner=True)
         if self.s.mode=='live':require_live(self.s)
         monitor = self.store.get(actor,monitor_id,'monitor')
@@ -357,8 +434,17 @@ class Desk:
                 if not self.analyzer:raise DeskError('AI unavailable. Run the local runtime status helper.')
                 result=self.analyzer.analyze(pending,monitor,cancel)
                 self.runtime_state='Ready'
-            findings.extend(validate_analysis(result,pending,monitor['messages'])['findings'])
-        result=validate_analysis({'findings':findings},sources,monitor['messages'])
+            if partial:
+                returned=result.get('findings',[]) if isinstance(result,dict) else []
+                for source in pending:
+                    matches=[f for f in returned if isinstance(f,dict) and f.get('source_id')==source['id']]
+                    try:findings.extend(validate_analysis({'findings':matches},[source],monitor['messages'])['findings'])
+                    except DeskError:
+                        source['analysis_error']='Assessment did not pass evidence checks; source retained for review.'
+                        self.store.update(actor,source['id'],source)
+            else:findings.extend(validate_analysis(result,pending,monitor['messages'])['findings'])
+        validated_sources=[r for r in sources if any(f['source_id']==r['id'] for f in findings)] if partial else sources
+        result=validate_analysis({'findings':findings},validated_sources,monitor['messages']) if findings else {'findings':[]}
         if cancel.is_set():raise DeskError('Cancelled; no assessment saved.')
         self.store.authorize(actor,owner=True)
         if self.store.get(actor,monitor_id,'monitor')['revision']!=monitor['revision']:
@@ -460,7 +546,16 @@ class Desk:
                         self.store.update(actor,run['id'],run)
                     except DeskError:pass
                 self.store.update(actor,job['id'],job)
-        if jobs:self.jobs[actor.user]={**jobs[0],'cancel':threading.Event()}
+        if jobs:
+            restored={**jobs[0],'cancel':threading.Event()}
+            former_cap=('validation cap is reached','Usage limit: this research path needs','Usage limit: research needs')
+            if any(marker in restored.get('error','') for marker in former_cap):
+                # Retain the original job record as history, not an active error.
+                restored.pop('error',None)
+                restored['state']='Stopped at former app cap'
+            self.jobs[actor.user]=restored
+            notice=self.store.preferences(actor).get('notice','')
+            if any(marker in notice for marker in former_cap):self.store.preferences(actor,{'notice':''})
 
     def migrate_perspectives(self, actor):
         """Split only a provable generated suffix; never rewrite a collaborator's prose."""
@@ -502,7 +597,7 @@ class Desk:
         if d['status']!='Draft':
             raise DeskError('This briefing was already sent or its delivery is uncertain.')
         for ident in d['board_ids']:
-            self.allowed_source(self.store.get(actor,ident,'board'))
+            self.briefing_source(actor,d,ident)
         if not self.s.channel:
             raise DeskError('Configure the public demo channel before publishing.')
         return self.store.create(actor,'preview',{'draft_id':d['id'],'revision':d['revision'],
@@ -518,7 +613,7 @@ class Desk:
             if p['used'] or d['status']!='Draft' or d['revision']!=p['revision'] or digest(json.dumps(message,sort_keys=True))!=p['digest'] or p['channel']!=self.s.channel:
                 raise DeskError('Preview expired or changed. Open a fresh preview.')
             for ident in d['board_ids']:
-                self.allowed_source(self.store.get(actor,ident,'board'))
+                self.briefing_source(actor,d,ident)
             info = client.conversations_info(channel=self.s.channel)['channel']
             if info.get('is_private') or not info.get('is_member') or info.get('is_ext_shared') or info.get('is_shared') or info.get('is_archived'):
                 raise DeskError('Publishing requires the configured public, internal channel with the bot invited.')

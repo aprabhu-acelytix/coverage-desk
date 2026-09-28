@@ -2,6 +2,8 @@
 
 A local Slack application for exploring coverage, inspecting message evidence, sharing selected findings, and preparing reviewed briefings. The interface is native Slack App Home: **Explore · Team board · Briefings**. There is no hosted dashboard or shared inference service.
 
+Latest search workflow and real validation results: [General search validation](GENERAL_SEARCH_VALIDATION.md).
+
 ## Run on this Windows machine
 
 ```powershell
@@ -59,14 +61,18 @@ The bot is a verified member of `#coverage-desk-demo`. Authentication and all th
 
 ## Workflow
 
+**Delete saved work:** Team board and Briefings have a **Delete** button beside each item you can remove. Confirmation explains the audience and effect. Creators can delete their own items; the configured app owner can also remove workspace-shared items. Private items remain private. Deleting a board item preserves its evidence and included perspectives in existing briefings, and invalidates their old publishing previews. Deleting a briefing removes its saved previews but keeps board findings and any already-published Slack message. Deletion waits until active app jobs finish; it does not invoke AI or source retrieval.
+
 1. In **Explore**, choose a monitor and **Refresh**, or **Find coverage** for a new search. Editing uses **Save & refresh**. Enter a subject, optional campaign and messages. More options contains identity guidance, editable interpretation, dates, region, sources and the explicit research path.
-2. One owner action interprets scope, searches, deduplicates and assesses a bounded batch. **AI-planned Brave** is the default after native trials exposed freshness and exact-evidence limitations. Native Codex web is an explicitly labeled alternative, not an automatic fallback. Planning, assessment and briefing use the separate no-tools worker.
+2. One owner action interprets scope, searches, deduplicates and assesses a bounded batch. **Codex web research** is now the default, using the owner's managed ChatGPT sign-in. A restricted discovery operation searches every selected category, while a separate tool-free operation assesses the exact retained excerpts. Brave remains an explicit alternative; no provider switches mid-run. Planning, assessment and briefing use the separate no-tools worker.
 3. **Relevant** means current scope, verified publication date, relevant subject and, when requested, relevant campaign. Missing desired messages and critical reporting remain eligible. **Needs review** includes unknown dates and pending/uncertain assessments. **All collected** retains all unique articles. Filters offer previous-scope history. Each article's retrieval observations remain inspectable in Source details.
 4. **Search details** shows the interpretation, actual queries/path, limits and partial outcomes. **Assess pending** continues a bounded batch across the run, never just the visible page. Browse/filter actions never invoke AI. Capacity is shared with this build's durable ledger.
 5. **Inspect** shows evidence, source details and discussion. **Save** defaults to private; explicitly choosing workspace sharing discloses the source. Including an assessment separately discloses its message wording, never private queries or monitor notes.
 6. On **Team board**, add a perspective or change review status. Authors use Slack profile mentions. Teammates can collaborate on shared objects without invoking AI.
 7. In **Briefings**, select up to five board findings, create a source-linked or AI-assisted draft, and edit its title and text. Team perspectives are attached separately and never sent to AI. Private sources keep the draft private.
 8. **Preview & publish** shows the exact destination and content. Only the owner can confirm. Edits invalidate previews; they expire after ten minutes. Published items use **View briefing**. No unattended publishing occurs.
+
+To delete a search, select it in Explore, open **Search options → Delete search**, then confirm. This removes the search, its collected results, run history and schedule. Saved board findings, perspectives, briefing snapshots and usage history are preserved. Wait for active work to finish (or cancel it) before deleting. Deleting the selected search switches to another saved search, or the empty Explore view if none remain.
 
 ## Runtime isolation and data flow
 
@@ -86,7 +92,7 @@ Every retained finding has its original URL, tracking-stripped duplicate key, so
 
 Default source/board/draft/cache retention is seven days, configurable downward. Expired records disappear from reads and are deleted on startup and every 30 seconds while running; WAL checkpointing follows deletion. Briefing snapshots expire no later than their sources. Monitor configuration persists separately. SQLite is not encrypted. Local expiry does not erase already-published Slack copies or provider-held records.
 
-The build-wide validation ledger in SQLite permanently caps **50 source slots and 10 runtime AI jobs** (the owner approved only the source-cap increase), counting attempts before sending. It survives restarts; do not remove/reset the database to bypass it. No automatic AI retry, paid fallback, purchasing, deployment or automatic channel post is enabled. Per-run source pages/results/calls are also bounded. Documentation and package downloads are not source-provider retrievals.
+The SQLite usage ledger records source slots and AI jobs across restarts, including attempts before sending. The owner removed the lifetime application caps on 28 September 2026; previous usage and historical cap values are preserved. Settings shows recorded usage without an enforced lifetime maximum. Per-search source calls, result counts, AI batches, queue size and timeouts remain bounded. Actual ChatGPT subscription and source-provider quotas still apply and cannot be removed by the app. No automatic retry, paid fallback, purchasing, deployment or automatic channel posting is enabled.
 
 ## Validation and current limitations
 
@@ -96,7 +102,7 @@ The explicitly authorized validation command is `.venv\Scripts\python -m coverag
 
 No browser/Slack UI surface was available to the build agent. Slack accepting a view payload is not a visual inspection. Check Home and modals in native light/dark mode, narrow width, five-row pagination, long headlines, empty/error states, and two actual teammate accounts. Simulated multi-user tests are not a real two-person walkthrough.
 
-Social discovery uses public indexed URLs, never direct social-platform connections. AI-planned Brave spends at most two queries on the selected scope, prioritizing explicit campaign focus and retaining a broad query. It does not promise to target every selected platform on each run. Search details records what was attempted. No new source integrations or scheduling features were added.
+Social discovery uses public indexed URLs, never direct social-platform connections. The planner treats campaign/product focus as a topic, not an exact slogan. Each selected category gets a query, with a subject-wide query, topical variation, and a calendar-word variant for short date windows. Search tasks stay within the configured per-run request limit (maximum 12); any unattempted target is reported. Date operators are hints, not verification. Two bounded assessment batches interleave query rankings across unique articles; remaining findings stay inspectable with an owner Check pending action. Up to five promising publication dates are checked per action using bounded public metadata retrieval. Login restrictions are never bypassed. Search details records what was attempted. No new source integrations or scheduling features were added.
 
 The earlier usability-only check (`scripts/validate_redesign.py`) is historical. Its source-only flow and page-based analysis were superseded by this research redesign. The active comparison is documented in `RESEARCH_VALIDATION.md`; it used the same durable ledger.
 

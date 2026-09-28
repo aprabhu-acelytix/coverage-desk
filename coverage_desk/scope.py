@@ -39,7 +39,10 @@ def version(row):
 def eligibility(row,monitor,run_scope):
     a=row.get('analysis')
     if row.get('analysis_scope_key')!=scope_key(monitor) or not a:
-        return 'review','Not assessed for this scope'
+        return 'review',row.get('analysis_error') or 'Not assessed for this scope'
+    if a['relevance']=='not_relevant':return 'excluded','Different subject'
+    if monitor.get('campaign') and a['campaign_relevance'] in ('not_relevant','not_applicable'):
+        return 'excluded','Outside the campaign focus'
     published=row.get('published')
     if not published or row.get('date_kind')!='publication':
         return 'review','Publication date needs verification'

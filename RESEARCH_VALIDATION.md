@@ -1,5 +1,9 @@
 # Research redesign validation
 
+**28 September update:** The owner removed the lifetime app caps. Recorded usage and historical limits were preserved; per-search and provider limits remain. The earlier allowance request below is superseded, and its counts describe the completed redesign validation, not current enforcement.
+
+The sections below record the earlier redesign validation. Current search changes and new live results are documented in [GENERAL_SEARCH_VALIDATION.md](GENERAL_SEARCH_VALIDATION.md); its provider choice supersedes the historical default below.
+
 Reviewed checkout: `4eccc07deb09d78cbb797431fcb0f8bc42e4d579`. The checkout matched that baseline; no newer user work was reset. The supplied redesign brief was preserved.
 
 ## What was reproduced and repaired
@@ -16,7 +20,7 @@ The official Python SDK and Codex CLI remain pinned at **0.157.1**. Managed auth
 
 The restricted native role permits only supported hosted public web search/open/find. Analysis, planning and briefing remain tool-free. Shell/editing/MCP/plugins/images/delegation, local files and development tools remain unavailable. The shared configuration lock is acquired before preparation. Observed action guards are not a preemptive hosted-network firewall: three source slots are reserved and the third observed action triggers interruption. Internal provider request counts are not observable. Unexpected tools, invalid quotes and generated citations cannot create evidence-backed claims.
 
-Native evidence was auditable, but research quality did not justify it as the default. Two trials retrieved historical/undated material and many model quotations did not match the observed snippets. The explicit default is **AI-planned Brave**, followed by separate no-tools assessment of the exact retained excerpts. Native research remains a labeled limited option. No mid-run switch or API-key AI fallback occurs.
+Native evidence was auditable, but research quality did not justify it as the default. Two trials retrieved historical/undated material and many model quotations did not match the observed snippets. At that historical checkpoint, the explicit default was **AI-planned Brave**, followed by separate no-tools assessment of the exact retained excerpts. Native research remains a labeled limited option. No mid-run switch or API-key AI fallback occurs.
 
 ## Small live before/after comparison
 
@@ -45,7 +49,7 @@ The live brand finding was saved to the workspace board, marked Reviewed, given 
 
 Slack authenticated, confirmed the configured public channel's membership, and accepted all three redesigned owner Home payloads. No Slack/browser inspection surface was available (`apps: []`, `browsers: []`); payload acceptance is not visual validation. Actual desktop/narrow/light/dark rendering and a real two-account collaboration walkthrough remain unverified.
 
-The durable ledger is **49/50 source slots and 10/10 AI jobs**. It includes all earlier builds/owner actions, the source-cap amendment, conservative native reservations, provider requests and metadata redirects. Nothing was reset. The owner approved raising source allowance from 30 to 50, not AI allowance. A request for caps of 57 source / 12 AI is pending; until approved, another full Refresh is blocked by the existing cap. Browsing, evidence inspection, discussion, editing and exact-preview preparation remain usable.
+At that historical checkpoint, the durable ledger was **49/50 source slots and 10/10 AI jobs**. It includes all earlier builds/owner actions, the source-cap amendment, conservative native reservations, provider requests and metadata redirects. Nothing was reset. The owner approved raising source allowance from 30 to 50, not AI allowance. That allowance request was subsequently superseded by the owner removing lifetime app caps; Refresh is no longer blocked by those historical caps. Browsing, evidence inspection, discussion, editing and exact-preview preparation remain usable.
 
 ## Verification and walkthrough
 

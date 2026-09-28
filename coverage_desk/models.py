@@ -41,6 +41,9 @@ class NativeResearch(Strict):
     interpretation: str = Field(max_length=500)
     candidates: list[NativeCandidate] = Field(max_length=5)
 
+class DiscoveryResult(Strict):
+    summary: str = Field(max_length=500)
+
 class Evidence(Strict):
     source_id: str
     quote: str = Field(max_length=500)
@@ -83,9 +86,13 @@ def validate_briefing(raw,sources):
     except ValueError:raise DeskError('Invalid evidence: briefing response did not match the required schema.') from None
     lookup={r['id']:r for r in sources}
     for point in result.what_changed+result.message_evidence:
-        if point.source_id not in lookup or not point.quote.strip() or point.quote not in lookup[point.source_id]['text']:
+        if point.source_id not in lookup or not observed_quote(point.quote,lookup[point.source_id]):
             raise DeskError('Invalid briefing evidence: source or exact quotation did not match.')
     return result.model_dump()
+
+def observed_quote(quote,source):
+    """Both retained headlines and excerpts are observed evidence, never generated prose."""
+    return bool(quote.strip()) and (quote in source['text'] or quote in source.get('full_title',source.get('title','')))
 
 def validate_analysis(raw, sources, messages):
     try:result = Analysis.model_validate(raw)
@@ -100,6 +107,6 @@ def validate_analysis(raw, sources, messages):
             if a.label in ('supported', 'contradicted') and not a.evidence:
                 raise DeskError('Invalid evidence: a supported or contradicted claim needs a quotation.')
             for ev in a.evidence:
-                if ev.source_id != f.source_id or not ev.quote.strip() or ev.quote not in lookup[ev.source_id]['text']:
+                if ev.source_id != f.source_id or not observed_quote(ev.quote,lookup[ev.source_id]):
                     raise DeskError('Invalid evidence: quotation did not match the selected source text.')
     return result.model_dump()

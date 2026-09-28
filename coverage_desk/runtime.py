@@ -57,7 +57,7 @@ class CodexAnalyzer:
                     break
                 except subprocess.TimeoutExpired:
                     continue
-            if len(output)>(1000000 if operation=='research' else self.s.output_job+2000):
+            if len(output)>(8000000 if operation=='research' else self.s.output_job+2000):
                 raise DeskError('AI output exceeded the application limit.')
             try:
                 result=json.loads(output.strip().splitlines()[-1] if operation=='research' else output)
@@ -123,10 +123,8 @@ class CodexAnalyzer:
         # Conservative reservation: hosted actions are observed after initiation,
         # so reserve a third action for cancellation at the boundary. Never refund.
         with self.store.transaction():
-            row=self.store.db.execute("SELECT used,cap FROM budgets WHERE kind='source'").fetchone()
-            if row['cap']-row['used']<3:raise DeskError('The research probe needs three remaining source-action slots.')
             self.store.db.execute("UPDATE budgets SET used=used+3 WHERE kind='source'")
-        self.store.consume('ai')
+            self.store.db.execute("UPDATE budgets SET used=used+1 WHERE kind='ai'")
         from .models import NativeResearch
         return self.call('research',{'criteria':criteria,'schema':NativeResearch.model_json_schema()},cancel)
 
@@ -138,14 +136,23 @@ class CodexAnalyzer:
         # Atomic, durable reservation, including one boundary action. No retries
         # or refunds: hosted tools are observable, not a client HTTP transport.
         with self.store.transaction():
-            for kind,amount in (('source',3),('ai',1)):
-                row=self.store.db.execute('SELECT used,cap FROM budgets WHERE kind=?',(kind,)).fetchone()
-                if row['cap']-row['used']<amount:
-                    raise DeskError('Usage limit: research needs 3 source slots and 1 AI job. Existing findings remain available.')
             self.store.db.execute("UPDATE budgets SET used=used+3 WHERE kind='source'")
             self.store.db.execute("UPDATE budgets SET used=used+1 WHERE kind='ai'")
         return self.call('research',{'operation':'coverage','scope':scope,'max_findings':self.s.ai_items,
             'schema':ResearchResult.model_json_schema()},cancel)
+
+    def discover(self,scope,tasks,cancel):
+        require_live(self.s)
+        if cancel.is_set():raise DeskError('Cancelled before discovery.')
+        if not tasks or len(tasks)>12:raise DeskError('Discovery needs between 1 and 12 bounded search tasks.')
+        if self.status()['state']!='Ready':raise DeskError('Sign-in needed before discovery.')
+        from .models import DiscoveryResult
+        with self.store.transaction():
+            self.store.db.execute("UPDATE budgets SET used=used+? WHERE kind='source'",(len(tasks)+1,))
+            self.store.db.execute("UPDATE budgets SET used=used+1 WHERE kind='ai'")
+        discovery_scope={'window':scope['window'],'criteria':{k:v for k,v in scope['criteria'].items() if k!='messages'}}
+        return self.call('research',{'operation':'discover','scope':discovery_scope,'tasks':tasks,
+            'max_actions':len(tasks),'schema':DiscoveryResult.model_json_schema()},cancel)
 
     def plan(self,monitor,cancel,max_queries=3):
         require_live(self.s)

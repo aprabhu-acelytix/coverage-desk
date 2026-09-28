@@ -96,13 +96,14 @@ class Store:
     def consume(self, kind):
         with self.transaction():
             row = self.db.execute('SELECT used,cap FROM budgets WHERE kind=?',(kind,)).fetchone()
-            if not row or row['used'] >= row['cap']:
-                raise DeskError(f'This build’s {kind} validation cap is reached. No request was sent.')
+            if not row:
+                raise DeskError('Unknown usage category.')
             self.db.execute('UPDATE budgets SET used=used+1 WHERE kind=?',(kind,))
 
     def budgets(self):
         with self.lock:
-            return {r['kind']: {'used':r['used'],'cap':r['cap']} for r in self.db.execute('SELECT * FROM budgets')}
+            # Legacy caps remain in SQLite as historical data, not enforcement.
+            return {r['kind']: {'used':r['used'],'cap':None,'historical_cap':r['cap']} for r in self.db.execute('SELECT * FROM budgets')}
 
     def claim(self, key):
         with self.lock:

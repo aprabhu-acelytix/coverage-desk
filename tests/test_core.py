@@ -41,6 +41,55 @@ def test_offline_flow(setup):
     assert client.chat_postMessage.call_count==1
     assert st.budgets()['ai']['used']==0
 
+def test_delete_board_preserves_existing_briefing_and_requires_new_preview(setup):
+    s,st,d,o,t,m,f=setup
+    board=d.save(o,f['id'],'shared',True)
+    d.perspective(t,board['id'],'Keep this included note')
+    draft=d.draft(o,[board['id']]);old=d.preview(o,draft['id']);usage=st.budgets()
+    with pytest.raises(DeskError):d.delete_item(o,board['id'],'board')
+    with pytest.raises(DeskError):d.delete_item(t,board['id'],'board',True)
+    d.delete_item(o,board['id'],'board',True)
+    assert not st.list(o,'board') and st.get(o,f['id'])
+    kept=st.get(o,draft['id'])
+    assert kept['text']==draft['text'] and kept['perspectives']==draft['perspectives']
+    with pytest.raises(DeskError):st.get(o,old['id'])
+    preview=d.preview(o,draft['id'])
+    client=Mock();client.conversations_info.return_value={'channel':{'is_member':True}}
+    client.chat_postMessage.return_value={'ts':'1.2'}
+    assert d.publish(o,preview['id'],client)['status']=='Published'
+    assert st.budgets()==usage
+
+def test_delete_briefing_removes_previews_only_and_blocks_tampering(setup):
+    s,st,d,o,t,m,f=setup
+    board=d.save(o,f['id'],'shared',True);draft=d.draft(o,[board['id']]);preview=d.preview(o,draft['id'])
+    with pytest.raises(DeskError):d.delete_item(t,draft['id'],'briefing',True)
+    with pytest.raises(DeskError):d.delete_item(Actor('OTHER','OWNER'),draft['id'],'briefing',True)
+    with pytest.raises(DeskError):d.delete_item(o,board['id'],'briefing',True)
+    d.jobs[o.user]={'state':'Working'}
+    with pytest.raises(DeskError):d.delete_item(o,draft['id'],'briefing',True)
+    d.jobs.clear();d.delete_item(o,draft['id'],'briefing',True)
+    assert not st.list(o,'briefing') and not st.list(o,'preview')
+    assert st.get(o,board['id'])
+
+def test_teammate_deletion_keeps_owner_private_draft_private(setup):
+    s,st,d,o,t,m,f=setup
+    source=d.manual(t,{'title':'Team source','url':'https://example.org/team','text':'Public excerpt'})
+    board=d.save(t,source['id'],'shared',True)
+    private=d.save(o,f['id'],'private');draft=d.draft(o,[board['id'],private['id']])
+    with pytest.raises(DeskError):st.get(t,draft['id'])
+    d.delete_item(t,board['id'],'board',True)
+    assert d.preview(o,draft['id'])
+    with pytest.raises(DeskError):st.get(t,draft['id'])
+    with pytest.raises(DeskError):d.delete_item(t,private['id'],'board',True)
+
+@pytest.mark.parametrize('status',['Published','Delivery uncertain'])
+def test_remove_sent_briefing_does_not_remove_board_or_call_slack(setup,status):
+    s,st,d,o,t,m,f=setup
+    board=d.save(o,f['id'],'shared',True);draft=d.draft(o,[board['id']])
+    draft.update(status=status,posted_ts='1.2');st.update(o,draft['id'],draft)
+    d.delete_item(o,draft['id'],'briefing',True)
+    assert not st.list(o,'briefing') and st.get(o,board['id'])
+
 @pytest.mark.parametrize('operation',['monitor','analysis','draft','publish'])
 def test_owner_only(setup,operation):
     s,st,d,o,t,m,f=setup
@@ -132,13 +181,16 @@ def test_provider_failure_never_fixture(setup,code):
     rows,status=provider.retrieve(m,threading.Event())
     assert rows==[] and status and st.budgets()['source']['used']==4
 
-def test_persistent_caps(tmp_path):
+def test_persistent_usage_continues_beyond_historical_caps(tmp_path):
     s=Settings(database=str(tmp_path/'budget.sqlite3'))
     st=Store(s)
     for _ in range(10):st.consume('ai')
     st.db.close();st=Store(s)
-    with pytest.raises(DeskError):st.consume('ai')
-    assert st.budgets()['ai']['used']==10
+    st.consume('ai')
+    for _ in range(31):st.consume('source')
+    assert st.budgets()['ai']=={'used':11,'cap':None,'historical_cap':10}
+    assert st.budgets()['source']=={'used':31,'cap':None,'historical_cap':30}
+    with pytest.raises(DeskError):st.consume('unknown')
 
 def test_exact_evidence_and_completeness(setup):
     s,st,d,o,t,m,f=setup
