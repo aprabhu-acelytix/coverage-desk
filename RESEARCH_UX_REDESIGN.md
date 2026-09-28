@@ -1,3 +1,5 @@
+> Active revision: [COVERAGE_OVERVIEW.md](COVERAGE_OVERVIEW.md) supersedes article-list defaults and latest-run-only counting in this earlier research brief. Preserve its privacy, owner-only research, evidence, collaboration and publishing boundaries.
+
 # Coverage Desk — research quality and Slack experience redesign
 
 ## Objective
@@ -151,3 +153,7 @@ Repository paths above refer to the pinned reviewed commit. Verify current offic
 - https://developers.openai.com/codex/sdk/
 - https://docs.slack.dev/surfaces/app-home/
 - https://docs.slack.dev/reference/block-kit/blocks/
+
+## Complete assessment and simpler browsing (28 September 2026)
+
+The latest owner request supersedes the two-batch/five-page collection limits and older Unassessed/Outside-period filter controls. One Refresh reads available publisher evidence and assesses the full finite collected scope using bounded, cancellable jobs. Access restrictions remain enforced; unavailable full pages may be assessed only from retained search evidence, clearly labeled. Normal browsing excludes confirmed outside-period findings, with publisher calendar-day flexibility but no invented dates. Use Relevant, Needs attention and All results. Corrections change one detail at a time. Native Slack Home has no documented custom tabs: use a compact active-view header and one view selector, not a row of navigation buttons.

@@ -80,7 +80,7 @@ def test_create_collect_once_and_show_results(app_env):
     assert submit(app,view).status==200
     await_true(lambda:len(st.list(o,'run'))==1 and d.jobs.get(o.user,{}).get('state')=='Needs review')
     assert st.list(o,'monitor')[0]['sources']==DEFAULT_SOURCES
-    assert len(finding_selection(st,o,{**st.preferences(o),'filter':'review'})['visible'])==1
+    assert len(finding_selection(st,o,{**st.preferences(o),'filter':'review','coverage_state':'all','content_type':'all'})['visible'])==1
     assert st.list(o,'finding')[0]['analysis']
     submit(app,view)
     assert len(st.list(o,'monitor'))==1
@@ -409,3 +409,66 @@ def test_old_app_limit_banner_is_not_restored_but_provider_limits_are(app_env):
     st.create(o,'job',{'state':'Usage limit','error':'ChatGPT usage limit reached.','label':'Research'})
     d.restore_jobs(o)
     assert d.jobs[o.user]['error']=='ChatGPT usage limit reached.'
+
+
+def test_overview_browsing_and_disclosure_dispatch_never_invokes_ai(app_env):
+    from test_overview import article
+    from coverage_desk.overview import coverage_overview
+    app,d,st,c,o=app_env
+    m=d.monitor(o,{'name':'Synthetic public client','campaign':'Launch','freshness':'pm'})
+    r=article(st,o,m)
+    st.preferences(o,{'monitor':m['id'],'snapshot':time.time(),'explore_view':'overview'})
+    d.analyzer=Mock();d.research=Mock();c.chat_postMessage=Mock()
+    outlet=coverage_overview(st,o,m)['outlets'][0]['id']
+    action(app,'coverage_outlet',outlet)
+    await_true(lambda:st.preferences(o).get('outlet')==outlet)
+    assert st.preferences(o)['explore_view']=='articles'
+    action(app,'coverage_back')
+    await_true(lambda:st.preferences(o).get('explore_view')=='overview')
+    action(app,'coverage_review_state_all','all')
+    await_true(lambda:st.preferences(o).get('coverage_state')=='all')
+    action(app,'coverage_view_overview','overview')
+    action(app,'overview_share',m['id'])
+    await_true(lambda:c.views_open.called)
+    disclosure=c.views_open.call_args.kwargs['view']
+    assert 'private' in json.dumps(disclosure) and disclosure['callback_id']=='overview_share_submit'
+    meta=json.loads(disclosure['private_metadata'])
+    no=form_view({'disclosure':'no'},meta,'NO');no['callback_id']='overview_share_submit'
+    assert json.loads(submit(app,no).body)['response_action']=='errors'
+    assert not st.list(o,'briefing')
+    yes=form_view({'disclosure':'yes'},meta,'YES');yes['callback_id']='overview_share_submit'
+    payload=json.loads(submit(app,yes).body)
+    assert payload['response_action']=='update' and payload['view']['callback_id']=='publish_submit'
+    assert 'Review all included sources' in json.dumps(payload)
+    assert st.list(o,'briefing')[0]['status']=='Draft'
+    c.chat_postMessage.assert_not_called();d.research.assert_not_called()
+    assert not d.analyzer.mock_calls and st.budgets()['ai']['used']==st.budgets()['source']['used']==0
+
+
+def test_owner_classification_correction_dispatch_is_audited(app_env):
+    from test_overview import article
+    from coverage_desk.overview import coverage_overview
+    app,d,st,c,o=app_env;m=d.monitor(o,{'name':'Synthetic public client','campaign':'Launch','freshness':'pm'})
+    r=article(st,o,m)
+    action(app,'coverage_correct',r['id']);await_true(lambda:c.views_open.called)
+    view=c.views_open.call_args.kwargs['view'];meta=json.loads(view['private_metadata'])
+    view=form_view({'content_type':'sponsored','reason':'Synthetic sponsorship disclosure'},meta,'CORRECT')
+    view['callback_id']='coverage_correct_submit';submit(app,view)
+    await_true(lambda:bool(st.list(o,'coverage_review')))
+    assert coverage_overview(st,o,m)['article_count']==0
+    assert st.list(o,'coverage_review')[0]['owner']==o.user
+    assert st.budgets()['ai']['used']==0
+
+
+def test_native_chart_rejection_falls_back_to_outlet_breakdown(app_env):
+    from test_overview import article
+    from slack_sdk.errors import SlackApiError
+    app,d,st,c,o=app_env;m=d.monitor(o,{'name':'Synthetic client','freshness':'pm'})
+    article(st,o,m);st.preferences(o,{'monitor':m['id'],'snapshot':time.time()})
+    st.create(o,'slack_capabilities',{'home':{'data_visualization':{'supported':True}}})
+    c.views_publish.side_effect=[SlackApiError('fixture',{'error':'invalid_blocks'}),{'ok':True}]
+    action(app,'coverage_view_overview','overview')
+    await_true(lambda:c.views_publish.call_count==2)
+    final=c.views_publish.call_args.kwargs['view']
+    assert not any(b['type']=='data_visualization' for b in final['blocks'])
+    assert 'a.example' in json.dumps(final)

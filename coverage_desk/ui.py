@@ -60,12 +60,14 @@ def modal(title,blocks,callback=None,metadata=None,submit='Save'):
 
 def date(row):
     if not row.get('published'):return 'Publication date unknown'
-    return row['published'][:10]+(' (page date)' if row.get('date_kind')!='publication' and row.get('provider','').startswith('Brave') else '')
+    return row['published'][:10]+(' (page date)' if row.get('date_kind') not in ('publication','owner_confirmed') and row.get('provider','').startswith('Brave') else '')
 
 def source_line(row):
-    publisher=urlsplit(row['url']).hostname or 'Source'
+    from .overview import CONTENT_TYPES
+    publisher=row.get('outlet_name') or urlsplit(row['url']).hostname or 'Source'
     social=platform(row['url'])
-    return f"{esc(PLATFORMS[social][0] if social else publisher)} · {date(row)} · {esc(row.get('source_kind','Web page'))}"
+    kind=CONTENT_TYPES.get(row.get('content_type'),row.get('source_kind','Web page'))
+    return f"{esc(PLATFORMS[social][0] if social else publisher)} · {date(row)} · {esc(kind)}"
 
 
 def author(user):
@@ -89,7 +91,7 @@ def finding_row(row,board=False,duplicates=1,can_delete=False):
 
 
 TAB_HELP={
-    'explore':('Explore','Find coverage and check what it says.', 'Choose or create a coverage search. Refresh once to search and assess evidence. Inspect a finding, then save it to your board. Only the owner can start research. Filters change your view, never the stored findings.'),
+    'explore':('Explore','Find coverage and check what it says.', 'Choose a client and period. Refresh searches and assesses evidence, then opens Coverage Overview. Select an outlet to inspect its articles, dates and message evidence. Save useful findings to the Team board, or preview an overview for sharing. Only the owner can start research. Filters change your view, never the stored findings.'),
     'board':('Team board','Save useful findings and discuss them with your team.', 'Findings saved from Explore appear here. Private findings are visible only to you. Workspace-shared findings let teammates add a perspective and update review status. Open a finding to contribute. Select saved findings when creating a briefing.'),
     'briefings':('Briefings','Turn selected findings into an editable, source-linked update.', 'Create a draft from up to five saved findings. Edit the wording and inspect the attached evidence. Only the owner can start AI or publish. Preview & publish shows the exact content and destination before anything is sent.')}
 
@@ -120,53 +122,34 @@ def job_blocks(job):
 
 def home(desk,actor):
     st=desk.store;p=st.preferences(actor);tab=p['tab'];owner=actor.user==desk.s.owner
-    blocks=[actions(*[button(label,'nav_'+key,key,tab==key) for label,key in
-        [('Explore','explore'),('Team board','board'),('Briefings','briefings')]])]
+    tabs=[('Explore','explore'),('Team board','board'),('Briefings','briefings')]
+    navigation=section('   |   '.join('*'+label+'*' if tab==key else label for label,key in tabs))
+    navigation['accessory']=select('nav_switch',tabs,tab,placeholder='Switch tab')
+    blocks=[navigation,{'type':'divider'}]
     job=desk.jobs.get(actor.user)
     busy=job and job['state'] in ('Queued','Working')
     if desk.s.mode=='demo':blocks.append(context('Demo: synthetic evidence, no live research.'))
-    if p.get('notice'):blocks.append(para(p['notice']))
-    if job and job.get('error') and not busy and (tab!='explore' or not job.get('monitor_id') or job['monitor_id']==p.get('monitor')):
+    if p.get('notice') and tab!='explore':blocks.append(para(p['notice']))
+    if job and job.get('error') and not busy and tab!='explore':
         blocks.append(para(job['error']))
     if tab=='explore':
         monitors=st.list(actor,'monitor')
         selected=next((m for m in monitors if m['id']==p['monitor']),monitors[0] if monitors else None)
         if selected:
             if p['monitor']!=selected['id']:p=st.preferences(actor,{'monitor':selected['id'],'snapshot':time.time(),'page':0})
-            controls=[select('monitor_select',[(m['name'],m['id']) for m in monitors],selected['id'])]
+            controls=[select('monitor_select',[(m['name']+(' | '+m['campaign'] if m.get('campaign') else ''),m['id']) for m in monitors],selected['id'])]
             if owner:controls.append(button('Refresh','refresh',selected['id'],True))
-            controls.append(button('Search options','search_options',selected['id']))
+            if owner:controls.append(button('Edit scope','edit_monitor',selected['id']))
             blocks.append(actions(*controls))
-            blocks.append(context(esc(selected['campaign'] or 'General coverage')+' | '+range_label(selected.get('freshness','pw'))+' | '+selected.get('research_path','Codex native web')))
+            blocks.append(context(esc(selected['campaign'] or 'General coverage')+' | '+range_label(selected.get('freshness','pw'))))
         else:
             blocks.extend([para('Find and assess public coverage, then save useful findings for your team.'),actions(button('Find coverage','new_monitor',primary=True))] if owner else
                           [para('Open Team board to review shared findings and add your perspective.')])
-        selection=finding_selection(st,actor,p);rows=selection['rows'];page=selection['page'];counts=selection['counts']
         if selected:
-            blocks.append(actions(select('result_filter',[(f"Relevant ({counts['relevant']})",'relevant'),
-                (f"Needs review ({counts['review']})",'review'),(f"All collected ({counts['all']})",'all')],p.get('filter','relevant')),
-                button('Filters','filters')))
-            if p.get('history')=='previous' or p.get('source_filter','all')!='all':
-                blocks.append(context(('Earlier searches | ' if p.get('history')=='previous' else '')+
-                    {value:label for label,value in FILTER_CHOICES}.get(p.get('source_filter'),'All sources')))
-        run=selection['run']
-        if busy and (not job.get('monitor_id') or job['monitor_id']==p.get('monitor')):
-            blocks.append(context(esc(job.get('stage','Queued'))+' | Findings already collected remain inspectable.'))
-            blocks.append(actions(button('Cancel','cancel')))
-        elif run and run.get('outcome') in ('Unavailable','Partial results','Interrupted','Cancelled'):
-            blocks.append(para(run['outcome']+'. Open Search details for what finished and what needs attention.'))
-        if selection['new']:blocks.append(actions(button(f"Show {selection['new']} new findings",'show_new')))
-        for row in selection['visible']:blocks.extend(finding_row(row))
-        if not rows and selected:
-            blocks.append(para('No current relevant findings yet. Needs review includes unassessed sources and uncertain publication dates; All collected preserves the complete retrieved set.' if p.get('filter','relevant')=='relevant' else
-                'No findings match this view. Change filters, inspect earlier searches, or refresh.'))
-        blocks.extend(pagination(page,len(rows)))
-        if run:
-            from .research import needs_publication_check
-            pending=sum(not r.get('analysis') or needs_publication_check(r,selected) for r in finding_selection(st,actor,{**p,'filter':'all','source_filter':'all'})['rows'])
-            controls=[button('Search details','run_status',run['id'])]
-            if owner and pending and not busy:controls.append(button(f'Check {pending} pending','continue_research',selected['id']))
-            blocks.append(actions(*controls))
+            from .overview_ui import home_blocks
+            blocks.extend(home_blocks(desk,actor,selected,p))
+        if p.get('notice'):blocks.append(para(p['notice']))
+        if job and job.get('error') and not busy:blocks.append(para(job['error']))
     elif tab=='board':
         rows=st.list(actor,'board');bf=p.get('board_filter','all')
         controls=[select('board_filter',[('All saved','all'),('Workspace shared','shared'),('Private to me','private')],bf)]
@@ -185,7 +168,7 @@ def home(desk,actor):
             blocks.extend([section('*'+esc(d['title'])+'*'),context(d['status']+' | '+('Workspace shared' if d['visibility']=='shared' else 'Private')+' | '+str(len(d['sources']))+' source'+('' if len(d['sources'])==1 else 's'))])
             elems=[button('View draft' if d['status']=='Draft' else 'View briefing','draft_detail',d['id'])]
             if d['status']=='Draft':
-                elems.append(button('Edit','edit_draft',d['id']))
+                if not d.get('overview'):elems.append(button('Edit','edit_draft',d['id']))
                 if owner:elems.append(button('Preview & publish','preview',d['id']))
             if d['owner']==actor.user or owner:elems.append(button('Delete','delete_briefing',d['id']))
             blocks.extend([actions(*elems),{'type':'divider'}])
@@ -241,8 +224,7 @@ def monitor_modal(m=None,expanded=False):
 
 def filters_modal(p):
     return modal('Filter findings',[input_select('source_filter','Platform or source',FILTER_CHOICES,p.get('source_filter','all')),
-        input_select('filter','Assessment',[(assessment_label(k),k) for k in ('relevant','review','all')],p.get('filter','relevant')),
-        input_select('history','Collection',[('Current search','current'),('Earlier searches','previous')],p.get('history','current')),
+        input_select('history','Collection',[('Current search','current'),('Previous search scope','previous')],p.get('history','current')),
         context('Filters only change this view. No searches run and no findings are removed.')],'filters_submit',submit='Apply filters')
 
 
@@ -277,9 +259,24 @@ def detail(row,board=False,tab='overview',page=0):
     elif tab=='source':
         content=[header('Source details'),para('Discovery: '+('Found through Brave Web' if row['provider']=='Brave web' else row['provider'])),
                  para('Date: '+date(row)+'\nCollected: '+time.strftime('%d %b %Y, %H:%M UTC',time.gmtime(row['retrieved']))+'\nAvailable text: '+row['access'])]
+        check=row.get('provenance',{}).get('publication_check',{})
+        if check.get('status'):content.append(para('Public page check: '+check['status']))
         if board:content.append(para(row.get('verification','Provider-returned evidence.')))
         else:
+            if row.get('content_type'):
+                from .overview import CONTENT_TYPES
+                content.extend([para('Outlet: '+row['outlet_name']+'\nContent: '+CONTENT_TYPES[row['content_type']]),
+                    para('Match: '+{'relevant':'Relevant','not_relevant':'Not relevant','uncertain':'Needs attention','unassessed':'Assessment incomplete'}.get(row.get('relevance'),'Needs attention')),
+                    para('Article-type evidence: '+row['classification_evidence']['method']+'\n'+row['classification_evidence'].get('quote','No supporting type evidence yet.')),
+                    para('Outlet identity: '+row['outlet_evidence']['method']+'\n'+row['outlet_evidence'].get('reason',row['outlet_evidence']['domain']))])
+                if row.get('redistribution'):content.append(para('Redistribution evidence: '+row['redistribution']))
+                if row.get('correction_audit'):
+                    audit=row['correction_audit']
+                    content.extend([context('Owner correction by '+author(audit['owner'])+' · '+time.strftime('%d %b %Y, %H:%M UTC',time.gmtime(audit['created']))),para(audit['reason'])])
             prov=row.get('provenance',{});filters=prov.get('filters',{})
+            profile=prov.get('publication_check',{}).get('source_profile',{})
+            if profile:
+                content.append(para('Observed publisher metadata\nPublisher: '+profile.get('publisher','Not established')+'\nByline: '+(', '.join(profile.get('authors',[])) or 'Not supplied')+'\nPage type: '+(', '.join(profile.get('article_types',[])) or 'Not supplied')))
             if prov.get('query'):content.append(para('Search terms: '+prov['query']))
             if prov.get('query_altered'):content.append(para('Provider adjusted the query: '+prov['query_altered']))
             if prov.get('target') in PLATFORMS and platform(row['url'])!=prov['target']:
@@ -318,7 +315,7 @@ def collection_modal(run):
         blocks=[para(run.get('interpretation') or 'Public coverage research'),context(run['path']+' | '+run.get('outcome','Researching')),
             para(f"{run.get('unique_count',0)} unique findings from {run['count']} observations. {run.get('assessed_count',0)} assessed; {run.get('pending_count',0)} pending."),
             para('Dates: '+str(run['scope']['window']['start'] or 'Any time')+' to '+run['scope']['window']['end']),
-            para('Only tool-observed excerpts support assessments. Missing publication dates stay in Needs review. Requested source categories guide search; this is not an exhaustive search of every platform.')]
+            para('Assessments use retained search evidence and available public publisher excerpts. Missing publication dates stay in Needs attention. Requested source categories guide search; this is not an exhaustive search of every platform.')]
         for status in run.get('statuses',[]):
             detail=str(status['results'])+' returned'
             if status['target'] in PLATFORMS:detail+='; '+str(status.get('platform_matches',0))+' on this platform'
@@ -354,6 +351,9 @@ def collection_modal(run):
 
 
 def briefing_blocks(d):
+    if d.get('overview'):
+        from .overview_ui import snapshot_blocks
+        return snapshot_blocks(d)
     blocks=[header(d['title']),para(d['text']),header('Sources')]
     for source in d['sources']:
         blocks.append(section(f"<{esc(source['url'])}|{esc(source['title'])}>\n{esc(source['provider'])} · {esc(source['access'])}"))

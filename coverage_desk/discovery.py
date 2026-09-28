@@ -18,6 +18,8 @@ FILTER_CHOICES = [('All sources', 'all'), ('News search', 'news'), ('Other web p
 
 def platform(url):
     host = (urlsplit(url).hostname or '').lower().rstrip('.')
+    # Corporate newsrooms are publications, not posts on the owned platform.
+    if host=='about.fb.com':return None
     return next((key for key, (_, domains) in PLATFORMS.items()
                  if any(host == domain or host.endswith('.' + domain) for domain in domains)), None)
 
@@ -43,31 +45,13 @@ def finding_selection(store, actor, preferences):
     monitors=store.list(actor,'monitor')
     monitor=next((m for m in monitors if m['id']==p.get('monitor')),None)
     if not monitor:return {'rows':[],'visible':[],'page':0,'new':0,'total':0,'counts':{'relevant':0,'review':0,'all':0},'run':None}
-    key=scope_key(monitor)
-    runs=[r for r in store.list(actor,'run') if r['monitor_id']==monitor['id'] and r.get('scope',{}).get('key')==key]
+    from .overview import project_articles
     boundary=p.get('snapshot',time.time())
-    stable=[r for r in runs if r['created']<=boundary]
-    run=stable[0] if stable else runs[0] if runs else None
-    history=p.get('history','current')=='previous'
-    raw=[r for r in store.list(actor,'finding') if r.get('monitor_id')==monitor['id']]
-    current=lambda r:r.get('scope_key')==key and r.get('monitor_revision')==monitor['revision']
-    if history:raw=[r for r in raw if not current(r) or (run and r.get('run_id') and r['run_id']!=run['id'])]
-    else:raw=[r for r in raw if current(r) and (not run or r.get('run_id')==run['id'] or r['provider']=='Manual contribution')]
-    run_scope=run['scope'] if run else snapshot(monitor)
-    # Identity projection precedes relevance filters, totals and pagination.
-    grouped={}
-    for r in raw:grouped.setdefault(r.get('article_id') or identity(actor.workspace,actor.user,r['url']),[]).append(r)
-    projected=[]
-    for article_id,observations in grouped.items():
-        observations.sort(key=lambda r:(r['retrieved'],r['created'],r['id']),reverse=True)
-        row=dict(observations[0]);row['article_id']=article_id
-        same_version=[r for r in observations if version(r)==version(row) and r.get('analysis_scope_key')==key and r.get('analysis')]
-        if same_version:row.update(analysis=same_version[0]['analysis'],analysis_scope_key=key)
-        row['observations']=[{'id':r['id'],'url':r['url'],'provider':r['provider'],'retrieved':r['retrieved'],
-            'run_id':r.get('run_id'),'version_id':r.get('version_id'),'provenance':r.get('provenance',{})} for r in observations]
-        row['eligibility'],row['match_reason']=eligibility(row,monitor,run_scope)
-        if history:row.update(eligibility='review',match_reason='Earlier search; not a current assessment')
-        projected.append(row)
+    projected_data=project_articles(store,actor,monitor,boundary,p.get('history')=='previous')
+    projected=projected_data['rows'];run=projected_data['run']
+    if p.get('content_type','all')!='all':projected=[r for r in projected if r['content_type']==p['content_type']]
+    if p.get('outlet'):projected=[r for r in projected if r['outlet_id']==p['outlet']]
+    if p.get('coverage_state','all')!='all':projected=[r for r in projected if r['coverage_state']==p['coverage_state']]
     source_rows=[r for r in projected if matches_source(r,p.get('source_filter','all'))]
     stable_rows=[r for r in source_rows if r['created']<=boundary]
     counts={'relevant':sum(r['eligibility']=='relevant' for r in stable_rows),
@@ -80,5 +64,10 @@ def finding_selection(store, actor, preferences):
     rows=[r for r in filtered if r['created']<=boundary]
     rows.sort(key=lambda r:(r.get('published') or '',r['retrieved'],r['article_id']),reverse=True)
     page=min(max(0,p.get('page',0)),max(0,(len(rows)-1)//5))
+    # Count unseen identities without shifting the user's stable page.
+    known={r['article_id'] for r in projected_data['rows']}
+    newer={r.get('article_id') or identity(actor.workspace,actor.user,r['url'])
+        for r in store.list(actor,'finding') if r.get('monitor_id')==monitor['id'] and r['created']>boundary
+        and r.get('scope_key')==scope_key(monitor) and r.get('monitor_revision')==monitor['revision']}
     return {'rows':rows,'visible':rows[page*5:page*5+5],'page':page,
-        'new':sum(r['created']>boundary for r in filtered),'total':len(projected),'counts':counts,'run':run}
+        'new':len(newer-known),'total':len(projected),'counts':counts,'run':run}

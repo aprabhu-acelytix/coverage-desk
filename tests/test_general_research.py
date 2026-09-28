@@ -169,6 +169,6 @@ def test_earlier_collection_survives_an_empty_refresh():
   old=st.create(owner,'finding',row)
   st.create(owner,'run',{'monitor_id':m['id'],'scope':scope,'count':0,'outcome':'Unavailable'})
   prefs={'monitor':m['id'],'filter':'all','snapshot':time.time()+1}
-  assert not finding_selection(st,owner,prefs)['rows']
-  assert finding_selection(st,owner,{**prefs,'history':'previous'})['rows'][0]['id']==old['id']
+  assert finding_selection(st,owner,prefs)['rows'][0]['id']==old['id']
+  assert not finding_selection(st,owner,{**prefs,'history':'previous'})['rows']
  finally:desk.pool.shutdown()

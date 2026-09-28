@@ -55,6 +55,102 @@ class Desk:
             return self.store.update(actor,ident,data,owner_only=True)
         return self.store.create(actor,'monitor',data,expires=time.time()+10*365*86400)
 
+    def correct_coverage(self,actor,source_id,values):
+        from .overview import CONTENT_TYPES,host
+        from datetime import datetime
+        self.store.authorize(actor,owner=True)
+        source=self.store.get(actor,source_id,'finding');self.allowed_source(source)
+        monitor=self.store.get(actor,source['monitor_id'],'monitor')
+        if source.get('scope_key')!=scope_key(monitor):raise DeskError('Correct evidence in the current search scope.')
+        reason=(values.get('reason') or '').strip()
+        if not reason or len(reason)>1000:raise DeskError('Explain the correction and its supporting evidence (up to 1,000 characters).')
+        changes={}
+        content=values.get('content_type','keep');relevance=values.get('relevance','keep')
+        if content!='keep':
+            if content not in CONTENT_TYPES:raise DeskError('Choose a supported content type.')
+            changes['content_type']=content
+        if relevance!='keep':
+            if relevance not in ('relevant','uncertain','not_relevant'):raise DeskError('Choose a relevance status.')
+            changes['relevance']=relevance
+        date_action=values.get('date_action','keep')
+        if date_action=='unknown':changes['published']=None
+        elif date_action=='set_day':
+            from datetime import date
+            try:changes.update(published=date.fromisoformat(values.get('published','')).isoformat(),date_precision='day')
+            except ValueError:raise DeskError('Choose the publication date shown on the source.') from None
+        elif date_action=='set':
+            try:
+                date=datetime.fromisoformat((values.get('published') or '').strip().replace('Z','+00:00'))
+                if not date.tzinfo:raise ValueError()
+                changes['published']=date.isoformat();changes['date_precision']='timestamp'
+            except ValueError:raise DeskError('Use a publication timestamp with timezone, for example 2026-09-18T14:44:00-07:00.') from None
+        elif date_action!='keep':raise DeskError('Choose a publication-date action.')
+        if values.get('redistribution_action')=='clear':changes['redistribution']=''
+        elif values.get('redistribution_action')=='set':
+            from .models import observed_quote
+            quote=(values.get('redistribution') or '').strip()
+            if not observed_quote(quote,source):raise DeskError('Redistribution needs an exact quotation from the retained headline or excerpt.')
+            changes['redistribution']=quote
+        with self.store.transaction():
+            from .models import canonical_url
+            related={r['article_id'] for r in self.store.list(actor,'finding') if r.get('monitor_id')==monitor['id'] and
+                r.get('scope_key')==scope_key(monitor) and canonical_url(r['canonical'])==canonical_url(source['canonical'])}
+            prior=[r for r in self.store.list(actor,'coverage_review') if r['article_id'] in related and r['scope_key']==scope_key(monitor)]
+            merged={};evidence={}
+            for review in reversed(prior):merged.update(review['changes']);evidence.update(review.get('field_evidence',{}))
+            merged.update(changes)
+            evidence.update({field:{'reason':reason,'source_id':source_id,'author':actor.user,'at':time.time()} for field in changes})
+            review=self.store.create(actor,'coverage_review',{'source_id':source_id,'article_id':source['article_id'],
+                'monitor_id':monitor['id'],'scope_key':scope_key(monitor),'changes':merged,'field_evidence':evidence,'reason':reason},expires=source['expires'])
+            name=(values.get('outlet_name') or '').strip();group=(values.get('outlet_group') or '').strip()
+            if name or group:
+                domain=host(source['url']);outlet_key=host('https://'+group) if group else domain
+                if not name or len(name)>180 or not outlet_key or '/' in group:raise DeskError('Give the full outlet name and an optional exact grouping hostname.')
+                self.store.create(actor,'outlet_alias',{'domain':domain,'outlet_key':outlet_key,'name':name,'reason':reason,
+                    'source_id':source_id},expires=source['expires'])
+            self.store.preferences(actor,{'snapshot':time.time(),'page':0,'notice':'Coverage correction saved with its evidence and author.'})
+            return review
+
+    def overview_snapshot(self,actor,monitor_id,preferences=None,confirmed=False):
+        from .overview import coverage_overview
+        self.store.authorize(actor,owner=True)
+        if not confirmed:raise DeskError('Confirm disclosure of the client, campaign, aggregate counts and included sources first.')
+        with self.store.transaction():
+            monitor=self.store.get(actor,monitor_id,'monitor')
+            overview=coverage_overview(self.store,actor,monitor,preferences)
+            if not overview['articles']:raise DeskError('No confirmed articles in this category to share. Review the evidence or choose another category.')
+            entries=[]
+            for row in overview['articles']:
+                self.allowed_source(row)
+                entries.append({k:row.get(k) for k in ('id','article_id','title','url','text','provider','access','published','date_kind','date_precision',
+                    'outlet_id','outlet_name','content_type','redistribution','expires','projection_expires')})
+                entries[-1]['observation_ids']=[r['id'] for r in row['observations']]
+                evidence=row['classification_evidence']
+                entries[-1]['classification_evidence']={'method':evidence['method'],
+                    'quote':evidence.get('quote','') if evidence['method']=='AI assessment' else ''}
+            frozen={k:overview[k] for k in ('at','category','article_count','outlet_count','partial','caveats','freshness')}
+            frozen['scope']={'window':overview['scope']['window'],'id':overview['scope']['id']}
+            frozen['outlets']=[{k:o[k] for k in ('id','key','name','count')} for o in overview['outlets']]
+            frozen['sources']=entries;frozen['client']=monitor['name'];frozen['campaign']=monitor.get('campaign','')
+            return self.store.create(actor,'briefing',{'title':monitor['name']+' | Coverage found','text':'Frozen coverage overview',
+                'overview':frozen,'sources':entries,'board_ids':[],'status':'Draft','revision':1,'edits':[],
+                'disclosure_confirmed':True},expires=min(r['projection_expires'] for r in entries))
+
+    def validate_overview_snapshot(self,actor,draft):
+        if not draft.get('overview'):return
+        if not draft.get('disclosure_confirmed'):raise DeskError('Overview disclosure has not been confirmed.')
+        for source in draft['overview']['sources']:
+            current=self.store.get(actor,source['id'],'finding');self.allowed_source(current)
+            if current['expires']<time.time() or source['projection_expires']<=time.time():raise DeskError('Overview source evidence expired. Create a fresh overview.')
+        ids={s['article_id'] for s in draft['overview']['sources']}
+        observations={ident for source in draft['overview']['sources'] for ident in source.get('observation_ids',[source['id']])}
+        if any((r['article_id'] in ids or r.get('source_id') in observations) and r['created']>draft['overview']['at'] for r in self.store.list(actor,'coverage_review')):
+            raise DeskError('Included evidence was corrected after this snapshot. Create a fresh overview before publishing.')
+        from .overview import host
+        domains={host(s['url']) for s in draft['overview']['sources']}
+        if any(a['domain'] in domains and a['created']>draft['overview']['at'] for a in self.store.list(actor,'outlet_alias')):
+            raise DeskError('An included outlet identity changed. Create a fresh overview before publishing.')
+
     def adopt_native_research(self,actor):
         """Apply the owner's requested provider change once, without revising evidence scopes."""
         self.store.authorize(actor,owner=True)
@@ -219,6 +315,7 @@ class Desk:
             self.progress(actor,{'stage':'Saving','outcome':outcome,'retained':len(saved)})
             return rows
         except Exception:
+            run=self.store.get(actor,run['id'],'run')
             run.update(count=len(saved),outcome='Partial results' if saved else 'Unavailable',checked=time.time())
             self.store.update(actor,run['id'],run)
             self.progress(actor,{'outcome':run['outcome'],'retained':len(saved)})
@@ -291,36 +388,32 @@ class Desk:
             run.update(statuses=statuses);self.store.update(actor,run['id'],run)
             current=self.store.get(actor,monitor_id,'monitor')['revision']==monitor['revision']
             if current and not cancel.is_set():
-                # Two bounded batches across the run, independent of the visible page.
-                attempted=set()
-                for batch_number in range(2):
-                    self.progress(actor,{'stage':f'Assessing evidence (batch {batch_number+1} of 2)','retained':len({r['canonical'] for r in saved})})
-                    if cancel.is_set():break
-                    try:batch=self.continue_research(actor,monitor_id,cancel,verify_dates=False,exclude_ids=attempted)
-                    except DeskError as exc:
-                        run['error']=str(exc)
-                        break
-                    if not batch:break
-                    attempted.update(batch)
-                if not cancel.is_set():self.verify_dates(actor,monitor_id,cancel)
+                self.complete_research(actor,monitor_id,cancel)
+                # Reload progress persisted by the complete workflow.
+                run=self.store.get(actor,run['id'],'run')
             current=self.store.get(actor,monitor_id,'monitor')['revision']==monitor['revision']
             projection=finding_selection(self.store,actor,{'monitor':monitor_id,'filter':'all','snapshot':time.time()})
             rows=projection['rows'] if current else saved
-            assessed=sum(bool(r.get('analysis')) for r in rows)
+            assessed=sum(bool(r.get('analysis')) and not r.get('analysis_error') for r in rows)
             run.update(count=len(saved),unique_count=len({r['canonical'] for r in saved}),assessed_count=assessed,
                 pending_count=len(rows)-assessed,counts=projection['counts'],checked=time.time(),
                 outcome='Cancelled' if cancel.is_set() else 'Previous scope' if not current else
                     'Needs review' if projection['counts']['review'] or run.get('error') else 'Assessed')
             self.store.update(actor,run['id'],run)
             self.progress(actor,{'outcome':run['outcome'],'stage':'Search complete','retained':run['unique_count']})
-            self.store.preferences(actor,{'snapshot':time.time(),'page':0,'history':'current','notice':''})
+            self.store.preferences(actor,{'snapshot':time.time(),'page':0,'history':'current','notice':'','explore_view':'overview','outlet':'','outlet_page':0})
             return saved
         except Exception:
+            run=self.store.get(actor,run['id'],'run')
             run.update(count=len(saved),outcome='Partial results' if saved else 'Unavailable',checked=time.time())
             self.store.update(actor,run['id'],run)
             self.progress(actor,{'outcome':run['outcome'],'retained':len(saved)})
             self.store.preferences(actor,{'snapshot':time.time()})
             raise
+
+    def complete_research(self,actor,monitor_id,cancel):
+        from .workflow import complete
+        return complete(self,actor,monitor_id,cancel)
 
     def verify_dates(self,actor,monitor_id,cancel):
         from .public_evidence import fetch_metadata
@@ -329,8 +422,10 @@ class Desk:
         from .discovery import platform
         monitor=self.store.get(actor,monitor_id,'monitor')
         rows=finding_selection(self.store,actor,{'monitor':monitor_id,'filter':'all','snapshot':time.time()})['rows']
-        candidates=[r for r in rows if needs_publication_check(r,monitor)]
-        candidates.sort(key=lambda r:(bool(platform(r['url'])),evidence_priority(r)))
+        candidates=[r for r in rows if needs_publication_check(r,monitor) or (r.get('relevance')=='relevant' and r.get('content_type')=='unknown'
+            and r.get('coverage_state')=='confirmed' and r['provider'] in ('Codex web','Brave news','Brave web')
+            and 'source_profile' not in r.get('provenance',{}).get('publication_check',{}))]
+        candidates.sort(key=lambda r:(r.get('coverage_state')!='confirmed',bool(platform(r['url'])),evidence_priority(r)))
         started=time.monotonic()
         for index,row in enumerate(candidates[:5]):
             if cancel.is_set() or time.monotonic()-started>50:break
@@ -345,39 +440,66 @@ class Desk:
                 if metadata.get('published'):
                     item.update(published=metadata['published'],date_kind='publication')
                     item['version_id']=version(item)
-                    if item.get('analysis'):item['analysis_key']=self.analysis_key(actor,item,monitor)
                 self.store.update(actor,item['id'],item)
 
     def analysis_key(self,actor,row,monitor):
         return digest(json.dumps({'article':row['canonical'],'version':version(row),'scope':scope_key(monitor),
-            'workspace':actor.workspace,'owner':actor.user,'model':self.s.model,'mode':self.s.mode,'analysis_version':4},sort_keys=True))
+            'publisher_metadata':row.get('provenance',{}).get('publication_check',{}).get('source_profile',{}),
+            'workspace':actor.workspace,'owner':actor.user,'model':self.s.model,'mode':self.s.mode,'analysis_version':6},sort_keys=True))
 
     def continue_research(self,actor,monitor_id,cancel,verify_dates=True,exclude_ids=None):
         from .discovery import finding_selection
         self.store.authorize(actor,owner=True)
         monitor=self.store.get(actor,monitor_id,'monitor')
+        if verify_dates and self.s.mode=='live' and not cancel.is_set():self.verify_dates(actor,monitor_id,cancel)
         rows=finding_selection(self.store,actor,{'monitor':monitor_id,'filter':'all','snapshot':time.time()})['rows']
-        pending=[r for r in rows if (not r.get('analysis') or r.get('analysis_scope_key')!=scope_key(monitor)) and r['id'] not in (exclude_ids or set())]
+        pending=[r for r in rows if (not r.get('analysis') or r.get('analysis_scope_key')!=scope_key(monitor) or (self.s.mode=='live' and r.get('content_type')=='unknown'
+            and r.get('coverage_key')!=self.analysis_key(actor,r,monitor))) and r['id'] not in (exclude_ids or set())]
         from .research import evidence_priority
-        pending.sort(key=evidence_priority)
+        pending.sort(key=lambda r:(0 if r.get('coverage_state')=='confirmed' else 1,
+            0 if r.get('relevance')=='relevant' else 1,evidence_priority(r)))
         # Deterministic bounded batch across the entire run, never the visible page.
         batch=[];size=0
+        batch_limit=min(self.s.ai_items,max(1,self.s.output_job//(700+250*len(monitor['messages']))))
         for row in pending:
             item_size=len(json.dumps(row['text']))+len(row['title'])+300
-            if len(batch)>=self.s.ai_items or size+item_size>self.s.input_job-6000:break
+            if len(batch)>=batch_limit or size+item_size>self.s.input_job-6000:break
             self.allowed_source(row);batch.append(row['id']);size+=item_size
-        if batch:self.analyze(actor,monitor_id,batch,cancel,partial=True)
-        if verify_dates and self.s.mode=='live' and not cancel.is_set():self.verify_dates(actor,monitor_id,cancel)
+        if batch:
+            typed=[r for r in pending if r['id'] in batch and r.get('analysis') and r.get('content_type')=='unknown']
+            if typed and self.s.mode=='live' and self.analyzer and hasattr(self.analyzer,'classify_coverage'):
+                batch=[r['id'] for r in typed]
+                self.classify_coverage(actor,monitor,typed,cancel)
+            else:self.analyze(actor,monitor_id,batch,cancel,partial=True)
         selection=finding_selection(self.store,actor,{'monitor':monitor_id,'filter':'all','snapshot':time.time()})
         remaining=sum(not r.get('analysis') for r in selection['rows'])
         outcome='Needs review' if selection['counts']['review'] else 'Assessed'
         runs=[r for r in self.store.list(actor,'run') if r['monitor_id']==monitor_id and r.get('scope',{}).get('key')==scope_key(monitor)]
         if runs:
             run=runs[0];run.update(pending_count=remaining,assessed_count=len(selection['rows'])-remaining,counts=selection['counts'],outcome=outcome)
+            if batch and run.get('error','').startswith('AI '):
+                run.setdefault('previous_assessment_errors',[]).append({'at':time.time(),'error':run.pop('error')})
             self.store.update(actor,run['id'],run)
         self.store.preferences(actor,{'snapshot':time.time(),'page':0})
         self.progress(actor,{'outcome':outcome,'stage':'Evidence assessed'})
         return batch
+
+    def classify_coverage(self,actor,monitor,sources,cancel):
+        from .models import CoverageAnalysis
+        self.store.authorize(actor,owner=True)
+        for source in sources:self.allowed_source(source)
+        result=self.analyzer.classify_coverage(sources,cancel)
+        try:result=CoverageAnalysis.model_validate(result).model_dump()
+        except ValueError:raise DeskError('Content-type assessment did not match its schema.') from None
+        if {r['source_id'] for r in result['findings']}!={s['id'] for s in sources} or len(result['findings'])!=len(sources):raise DeskError('Content-type assessment must cover each selected source once.')
+        validated=validate_analysis({'findings':[{'source_id':r['source_id'],'coverage':r['coverage'],'relevance':'uncertain',
+            'campaign_relevance':'not_applicable','explanation':'Separate content-type assessment','messages':[]} for r in result['findings']]},sources,[])
+        if cancel.is_set():raise DeskError('Cancelled; no content-type assessment saved.')
+        if self.store.get(actor,monitor['id'],'monitor')['revision']!=monitor['revision']:raise DeskError('Search scope changed; content types were not saved.')
+        for item in validated['findings']:
+            row=self.store.get(actor,item['source_id'],'finding');self.allowed_source(row)
+            row.update(coverage=item['coverage'],coverage_key=self.analysis_key(actor,row,monitor),coverage_assessed_at=time.time())
+            self.store.update(actor,row['id'],row)
 
     def manual(self,actor,values):
         self.store.authorize(actor)
@@ -451,6 +573,9 @@ class Desk:
             raise DeskError('Monitor changed while AI was working. Results were not saved.')
         for assessment in result['findings']:
             row=self.store.get(actor,assessment['source_id'],'finding');self.allowed_source(row)
+            row.pop('analysis_error',None)
+            if row.get('analysis_key')!=keys[row['id']]:
+                row.pop('coverage',None);row.pop('coverage_key',None)
             row.update(analysis=assessment,analysis_scope_key=scope_key(monitor),analysis_scope_id=row.get('scope_id'),
                 analysis_status='Fixture assessment' if self.s.mode=='demo' else 'AI assessed',analysis_key=keys[row['id']])
             self.store.update(actor,row['id'],row)
@@ -459,10 +584,18 @@ class Desk:
     def finding_detail(self,actor,ident):
         row=self.store.get(actor,ident,'finding')
         row['observations']=[r for r in self.store.list(actor,'finding') if r['canonical']==row['canonical'] and r['owner']==row['owner']]
+        if row.get('monitor_id'):
+            from .overview import project_articles
+            monitor=self.store.get(actor,row['monitor_id'],'monitor')
+            match=next((r for r in project_articles(self.store,actor,monitor)['rows'] if r['id']==ident),None)
+            if match:
+                for key in ('published','date_kind','date_precision','relevance','projection_expires','content_type','outlet_name','outlet_evidence','classification_evidence','correction_audit','coverage_state','assessment_status','date_status','redistribution'):
+                    if key in match:row[key]=match[key]
         return row
 
     def save(self,actor,source_id,visibility,confirmed=False,include_analysis=False):
-        source = self.store.get(actor,source_id,'finding')
+        source = self.finding_detail(actor,source_id)
+        source['expires']=min(source['expires'],source.get('projection_expires',source['expires']))
         self.allowed_source(source)
         if visibility == 'shared' and not confirmed:
             raise DeskError('Confirm disclosure to everyone in this workspace.')
@@ -579,6 +712,7 @@ class Desk:
     def edit_draft(self,actor,ident,text,revision,title=None):
         with self.store.lock:
             d = self.store.get(actor,ident,'briefing')
+            if d.get('overview'):raise DeskError('Coverage snapshots are frozen. Correct the source evidence and create a new snapshot.')
             if d['revision'] != revision or d['status'] != 'Draft':
                 raise DeskError('This draft changed. Reopen it before editing.')
             if not text.strip() or len(text)>2800:
@@ -596,6 +730,7 @@ class Desk:
         d = self.store.get(actor,ident,'briefing')
         if d['status']!='Draft':
             raise DeskError('This briefing was already sent or its delivery is uncertain.')
+        self.validate_overview_snapshot(actor,d)
         for ident in d['board_ids']:
             self.briefing_source(actor,d,ident)
         if not self.s.channel:
@@ -609,6 +744,7 @@ class Desk:
         with self.store.lock:
             p = self.store.get(actor,preview_id,'preview')
             d = self.store.get(actor,p['draft_id'],'briefing')
+            self.validate_overview_snapshot(actor,d)
             message=briefing_message(d)
             if p['used'] or d['status']!='Draft' or d['revision']!=p['revision'] or digest(json.dumps(message,sort_keys=True))!=p['digest'] or p['channel']!=self.s.channel:
                 raise DeskError('Preview expired or changed. Open a fresh preview.')
@@ -626,4 +762,7 @@ class Desk:
         except Exception:
             raise DeskError('Delivery is uncertain. Check the channel before taking any further action; automatic reposting is disabled.') from None
         d.update(status='Published',posted_ts=result['ts'])
+        if d.get('overview'):
+            # The exact confirmation explicitly includes workspace disclosure.
+            self.store.db.execute("UPDATE objects SET visibility='shared' WHERE id=?",(d['id'],))
         return self.store.update(actor,d['id'],d)

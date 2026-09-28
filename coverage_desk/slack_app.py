@@ -56,7 +56,12 @@ def create_app(s,store,client):
         with lock:
             if notice is not None:store.preferences(actor,{'notice':notice})
             try:
-                client.views_publish(user_id=actor.user,view=ui.home(desk,actor))
+                view=ui.home(desk,actor)
+                try:client.views_publish(user_id=actor.user,view=view)
+                except Exception as exc:
+                    if getattr(exc,'response',{}).get('error') not in ('invalid_blocks','invalid_arguments') or not any(b['type']=='data_visualization' for b in view['blocks']):raise
+                    store.create(actor,'slack_capabilities',{'home':{'data_visualization':{'supported':False}},'checked':time.time()})
+                    client.views_publish(user_id=actor.user,view=ui.home(desk,actor))
             except Exception:
                 logging.getLogger('coverage').warning('App Home update unavailable; reopen Home to refresh.')
     last_progress={}
@@ -86,7 +91,7 @@ def create_app(s,store,client):
             if e.get('type')=='multi_static_select' or 'selected_options' in e:
                 data[k]=[o['value'] for o in e.get('selected_options',[])]
             elif 'selected_option' in e:data[k]=(e.get('selected_option') or {}).get('value','')
-            else:data[k]=e.get('value') or ''
+            else:data[k]=e.get('selected_date') or e.get('value') or ''
         return data
     def metadata(body):return json.loads(body['view'].get('private_metadata') or '{}')
     def monitor_values(actor, body):
@@ -119,7 +124,8 @@ def create_app(s,store,client):
     @app.event('app_home_opened')
     def opened(body,ack):
         ack()
-        try:home(actor_of(body))
+        try:
+            actor=actor_of(body);store.preferences(actor,{'snapshot':time.time(),'page':0,'outlet_page':0});home(actor)
         except DeskError:pass
     @app.command('/coverage')
     def coverage(body,ack):
@@ -139,7 +145,56 @@ def create_app(s,store,client):
                 if value not in ('explore','board','briefings'):raise DeskError('Unknown view.')
                 store.preferences(actor,{'tab':value,'page':0,'notice':''})
             elif kind.startswith('page_'):store.preferences(actor,{'page':max(0,int(value))})
-            elif kind=='monitor_select':store.get(actor,value,'monitor');store.preferences(actor,{'monitor':value,'page':0,'snapshot':time.time(),'notice':''})
+            elif kind=='monitor_select':store.get(actor,value,'monitor');store.preferences(actor,{'monitor':value,'page':0,'snapshot':time.time(),'notice':'','outlet':'','outlet_page':0,'explore_view':'overview','content_type':'reporting','coverage_state':'confirmed'})
+            elif kind.startswith('coverage_view_'):
+                if value not in ('overview','articles'):raise DeskError('Unknown coverage view.')
+                store.preferences(actor,{'explore_view':value,'page':0,'notice':''})
+            elif kind=='coverage_category':
+                from .overview import CONTENT_TYPES
+                if value not in (*CONTENT_TYPES,'all'):raise DeskError('Unknown content type.')
+                store.preferences(actor,{'content_type':value,'page':0,'outlet_page':0,'outlet':''})
+            elif kind=='coverage_state':
+                from .overview import STATES
+                if value not in (*STATES,'all','attention'):raise DeskError('Unknown evidence state.')
+                store.preferences(actor,{'coverage_state':value,'page':0})
+            elif kind=='coverage_outlet':
+                from .overview import coverage_overview
+                monitor=store.get(actor,p['monitor'],'monitor')
+                if value not in {o['id'] for o in coverage_overview(store,actor,monitor,p)['outlets']}:raise DeskError('This outlet is no longer in the selected overview.')
+                store.preferences(actor,{'explore_view':'articles','outlet':value,'coverage_state':'confirmed','history':'current','source_filter':'all','page':0})
+            elif kind in ('coverage_back','coverage_clear'):
+                store.preferences(actor,{'explore_view':'overview' if kind=='coverage_back' else 'articles','outlet':'','page':0})
+            elif kind.startswith('outlet_page_'):store.preferences(actor,{'outlet_page':max(0,int(value))})
+            elif kind.startswith('coverage_review_state_'):
+                from .overview import STATES
+                if value not in (*STATES,'all','attention'):raise DeskError('Unknown evidence state.')
+                store.preferences(actor,{'explore_view':'articles','content_type':'all','coverage_state':value,'history':'current','source_filter':'all','outlet':'','page':0})
+            elif kind=='coverage_correct_field':
+                from .overview_ui import correction_modal
+                store.authorize(actor,owner=True)
+                client.views_update(view_id=body['view']['id'],hash=body['view'].get('hash'),view=correction_modal(desk.finding_detail(actor,metadata(body)['id']),value,form_values(body).get('reason','')));return
+            elif kind=='coverage_correct':
+                from .overview_ui import correction_modal
+                store.authorize(actor,owner=True)
+                open_modal(body,correction_modal(desk.finding_detail(actor,value)));return
+            elif kind=='overview_share':
+                from .overview import coverage_overview,CONTENT_TYPES
+                from .overview_ui import period
+                store.authorize(actor,owner=True)
+                monitor=store.get(actor,value,'monitor');overview=coverage_overview(store,actor,monitor,p)
+                open_modal(body,ui.modal('Share coverage overview',[
+                    ui.para(monitor['name']+' · '+(monitor.get('campaign') or 'General coverage')),
+                    ui.para(period(overview['scope']['window'])+'\n'+str(overview['article_count'])+' articles / '+str(overview['outlet_count'])+' outlets · '+CONTENT_TYPES.get(overview['category'],'All content types')),
+                    ui.para('This snapshot includes private client/campaign information, aggregate counts, outlet names, source links and excerpts. Publishing shares it in the configured public channel and makes the snapshot visible to everyone in this workspace. Monitor notes, queries and tracked messages are excluded. Nothing is posted until you confirm the exact preview next.'),
+                    ui.input_select('disclosure','Include this information?',[('Keep private','no'),('Yes, prepare sharing preview','yes')],'no')],
+                    'overview_share_submit',{'id':value,'category':overview['category'],'at':overview['at'],'scope_key':monitor['scope_key']},submit='Prepare preview'));return
+            elif kind=='overview_review_snapshot':
+                from .overview_ui import snapshot_modal
+                open_modal(body,snapshot_modal(store.get(actor,value,'briefing')));return
+            elif kind.startswith(('overview_sources_','overview_outlets_','overview_snapshot_')):
+                from .overview_ui import snapshot_modal
+                d=store.get(actor,metadata(body)['id'],'briefing')
+                client.views_update(view_id=body['view']['id'],hash=body['view'].get('hash'),view=snapshot_modal(d,int(value),'outlets' if 'outlets' in kind else 'sources'));return
             elif kind=='board_filter':store.preferences(actor,{'board_filter':value,'page':0})
             elif kind=='result_filter':
                 if value not in ('relevant','review','all'):raise DeskError('Unknown result view.')
@@ -212,7 +267,7 @@ def create_app(s,store,client):
                 store.preferences(actor,{'notice':''})
                 desk.submit(actor,'Researching coverage',lambda cancel:desk.research(actor,value,cancel),True,key=actor.user+':'+a.get('action_ts',body['trigger_id']))
             elif kind=='continue_research':
-                desk.submit(actor,'Assessing pending evidence',lambda cancel:desk.continue_research(actor,value,cancel),True,key=actor.user+':'+a.get('action_ts',body['trigger_id']))
+                desk.submit(actor,'Assessing pending evidence',lambda cancel:desk.complete_research(actor,value,cancel) if s.mode=='live' else desk.continue_research(actor,value,cancel),True,key=actor.user+':'+a.get('action_ts',body['trigger_id']))
             elif kind=='manual':
                 open_modal(body,ui.modal('Add a source',[ui.context('User-submitted evidence. The app does not fetch this URL.'),ui.input_text('url','Source URL',max_length=1500),ui.input_text('title','Title'),ui.input_text('text','Available excerpt','',True,True,3000),ui.input_text('comment','Your private comment','',True,True,2000)],'manual_submit',{'monitor_id':p['monitor']}));return
             elif kind=='save':
@@ -230,13 +285,20 @@ def create_app(s,store,client):
                 if not rows:raise DeskError('Save at least one finding to the Team board first.')
                 selector={'type':'multi_static_select','action_id':'value','placeholder':ui.plain('Select up to five findings'),'max_selected_items':5,'options':[ui.option(r['title'],r['id']) for r in rows[:100]]}
                 open_modal(body,ui.modal('Create briefing',[ui.context('Only selected public evidence goes to Codex. Team perspectives never enter AI inputs. Shared drafts require shared sources.'),{'type':'input','block_id':'ids','label':ui.plain('Board findings'),'element':selector},ui.input_select('ai','Draft method',[('AI-assisted, evidence-validated','yes'),('Source-linked draft without AI','no')],'yes')],'briefing_submit',submit='Create draft'));return
-            elif kind=='draft_detail':open_modal(body,ui.modal('Briefing snapshot',ui.briefing_blocks(store.get(actor,value,'briefing'))));return
+            elif kind=='draft_detail':
+                d=store.get(actor,value,'briefing')
+                from .overview_ui import snapshot_modal
+                open_modal(body,snapshot_modal(d) if d.get('overview') else ui.modal('Briefing snapshot',ui.briefing_blocks(d)));return
             elif kind=='edit_draft':
                 d=store.get(actor,value,'briefing')
                 open_modal(body,ui.modal('Edit briefing',[ui.input_text('title','Title',d['title'],max_length=150),ui.input_text('text','Draft text',d['text'],False,True,2800),ui.context('Source links remain attached. Editing never invokes AI.')],'edit_draft_submit',{'id':value,'revision':d['revision']}));return
             elif kind=='preview':
                 p=desk.preview(actor,value);d=store.get(actor,value,'briefing')
-                open_modal(body,ui.modal('Confirm exact preview',[ui.para('Destination: '+s.channel+' · Public demo channel. Confirming sends the exact blocks below.'),*ui.briefing_blocks(d)],'publish_submit',{'id':p['id']},submit='Publish'));return
+                blocks=[ui.para('Destination: '+s.channel+' · Public demo channel. Confirming sends the exact blocks below.'),*ui.briefing_blocks(d)]
+                if d.get('overview'):
+                    blocks.insert(1,ui.para('Publishing also makes the frozen snapshot workspace-visible, including private client/campaign information, aggregate counts and all included source excerpts. Review the full list before confirming.'))
+                    blocks.append(ui.actions(ui.button('Review all included sources','overview_review_snapshot',d['id'])))
+                open_modal(body,ui.modal('Confirm exact preview',blocks,'publish_submit',{'id':p['id']},submit='Publish'));return
             else:raise DeskError('Reopen Home to use the current controls.')
             home(actor)
         except Exception as exc:
@@ -256,6 +318,20 @@ def create_app(s,store,client):
             ack()
             if actor:home(actor,str(exc))
             return
+        if kind=='overview_share_submit':
+            try:
+                if v.get('disclosure')!='yes':raise DeskError('Choose Yes to include private aggregates and sources, or cancel to keep them private.')
+                monitor=store.get(actor,m['id'],'monitor')
+                if monitor['scope_key']!=m['scope_key']:raise DeskError('The search scope changed. Open a new overview preview.')
+                if not store.claim('form:'+actor.user+':'+body['view']['id']+':'+body['view'].get('hash','')):
+                    ack(response_action='clear');return
+                d=desk.overview_snapshot(actor,m['id'],{'content_type':m['category'],'snapshot':m['at']},confirmed=True)
+                preview=desk.preview(actor,d['id'])
+                ack(response_action='update',view=ui.modal('Confirm exact preview',[
+                    ui.para('Destination: '+s.channel+' · Public internal channel and workspace-visible snapshot. Confirming publishes the exact content below.'),
+                    *ui.briefing_blocks(d),ui.actions(ui.button('Review all included sources','overview_review_snapshot',d['id']))],'publish_submit',{'id':preview['id']},submit='Publish'))
+            except Exception as exc:ack(response_action='errors',errors={'disclosure':str(exc) if isinstance(exc,DeskError) else 'Could not prepare the preview. Try again from Home.'})
+            return
         if kind in ('delete_monitor_submit','delete_item_submit'):ack(response_action='clear')
         else:ack()
         try:
@@ -263,7 +339,7 @@ def create_app(s,store,client):
                 return
             if kind=='monitor_submit':
                 row=desk.monitor(actor,v,m.get('id'))
-                store.preferences(actor,{'monitor':row['id'],'tab':'explore','filter':'relevant','history':'current','source_filter':'all','page':0,'snapshot':time.time(),'notice':''})
+                store.preferences(actor,{'monitor':row['id'],'outlet':'','outlet_page':0,'explore_view':'overview','content_type':'reporting','coverage_state':'confirmed','tab':'explore','filter':'relevant','history':'current','source_filter':'all','page':0,'snapshot':time.time(),'notice':''})
                 try:desk.submit(actor,'Researching coverage',lambda cancel:desk.research(actor,row['id'],cancel),True,key='search:'+body['view']['id']+':'+body['view'].get('hash',''))
                 except DeskError as exc:store.preferences(actor,{'notice':'Search saved. '+str(exc)+' Use Refresh when ready.'})
             elif kind=='delete_monitor_submit':
@@ -273,7 +349,11 @@ def create_app(s,store,client):
                 desk.delete_item(actor,m['id'],m['kind'],confirmed=True)
                 store.preferences(actor,{'tab':'board' if m['kind']=='board' else 'briefings','page':0,
                     'notice':'Saved finding deleted. Existing briefings were kept.' if m['kind']=='board' else 'Briefing deleted from the app. Published Slack messages were kept.'})
-            elif kind=='filters_submit':store.preferences(actor,{'filter':v['filter'],'source_filter':v.get('source_filter','all'),'history':v.get('history','current'),'page':0,'notice':''})
+            elif kind=='coverage_correct_submit':
+                if m.get('field')=='published':v['date_action']='set_day' if v.get('published') else 'unknown'
+                desk.correct_coverage(actor,m['id'],v)
+            elif kind=='filters_submit':store.preferences(actor,{'source_filter':v.get('source_filter','all'),'history':v.get('history','current'),
+                'content_type':'all','coverage_state':'all','outlet':'','explore_view':'articles','page':0,'notice':''})
             elif kind=='manual_submit':
                 v={k:(x or '') for k,x in v.items()};v['monitor_id']=m.get('monitor_id','')
                 desk.manual(actor,v);store.preferences(actor,{'snapshot':time.time(),'notice':'Source added. Its excerpt is labeled user-supplied.'})
@@ -308,6 +388,7 @@ def run(s,store):
     client,_=bind(s)
     store.s.workspace=s.workspace
     store.migrate_research()
+    store.migrate_overview()
     store.purge()
     app,desk,publish=create_app(s,store,client)
     owner_actor=Actor(s.workspace,s.owner)

@@ -13,7 +13,7 @@ def safe_url(value):
 
 def canonical_url(value):
     p = urlsplit(safe_url(value))
-    params = [(k,v) for k,v in parse_qsl(p.query, keep_blank_values=True) if not k.lower().startswith('utm_') and k.lower() not in ('fbclid','gclid','msclkid')]
+    params = [(k,v) for k,v in parse_qsl(p.query, keep_blank_values=True) if not k.lower().startswith('utm_') and k.lower() not in ('fbclid','gclid','msclkid','trk','ref_src')]
     return urlunsplit((p.scheme, p.netloc.lower(), p.path, urlencode(params), ''))
 
 def digest(value):
@@ -54,15 +54,37 @@ class Assessment(Strict):
     explanation: str = Field(max_length=800)
     evidence: list[Evidence] = Field(max_length=4)
 
+class CoverageClassification(Strict):
+    content_type: Literal['reporting','client_owned','press_release','sponsored','social','unknown']
+    evidence: str = Field(max_length=400)
+    outlet_name: str = Field(max_length=180)
+    redistribution: str = Field(max_length=400)
+
 class Classification(Strict):
     source_id: str
     relevance: Literal['relevant','uncertain','not_relevant']
     campaign_relevance: Literal['relevant','uncertain','not_relevant','not_applicable']
     explanation: str = Field(max_length=800)
     messages: list[Assessment] = Field(max_length=8)
+    coverage: CoverageClassification | None = None
 
 class Analysis(Strict):
     findings: list[Classification] = Field(max_length=15)
+
+class LiveClassification(Classification):
+    # Legacy stored assessments may omit coverage. New structured runtime output
+    # must require every property, including an explicit unknown classification.
+    coverage: CoverageClassification
+
+class LiveAnalysis(Strict):
+    findings: list[LiveClassification] = Field(max_length=15)
+
+class CoverageFinding(Strict):
+    source_id: str
+    coverage: CoverageClassification
+
+class CoverageAnalysis(Strict):
+    findings: list[CoverageFinding] = Field(max_length=15)
 
 class ResearchFinding(Classification):
     supporting_quote: str = Field(min_length=1,max_length=500)
@@ -94,6 +116,11 @@ def observed_quote(quote,source):
     """Both retained headlines and excerpts are observed evidence, never generated prose."""
     return bool(quote.strip()) and (quote in source['text'] or quote in source.get('full_title',source.get('title','')))
 
+def classification_quote(quote,source):
+    profile=source.get('provenance',{}).get('publication_check',{}).get('source_profile',{})
+    values=[profile.get('publisher',''),*profile.get('authors',[]),*profile.get('article_types',[])]
+    return observed_quote(quote,source) or bool(quote.strip()) and any(quote in v for v in values)
+
 def validate_analysis(raw, sources, messages):
     try:result = Analysis.model_validate(raw)
     except ValueError:raise DeskError('Invalid evidence: analysis response did not match the required schema.') from None
@@ -101,6 +128,13 @@ def validate_analysis(raw, sources, messages):
     if len(result.findings) != len(lookup) or {f.source_id for f in result.findings} != set(lookup):
         raise DeskError('Invalid evidence: output must assess each selected source once.')
     for f in result.findings:
+        if f.coverage:
+            c=f.coverage;source=lookup[f.source_id]
+            if c.content_type!='unknown' and not classification_quote(c.evidence,source):
+                # Preserve valid message assessments even when type evidence fails.
+                c.content_type='unknown';c.evidence=''
+            if c.outlet_name and not classification_quote(c.outlet_name,source):c.outlet_name=''
+            if c.redistribution and not observed_quote(c.redistribution,source):c.redistribution=''
         if [a.message for a in f.messages] != messages:
             raise DeskError('Invalid evidence: message criteria changed.')
         for a in f.messages:

@@ -127,7 +127,8 @@ class Store:
             self.db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
             if self.s.database!=':memory:':
                 # Migration backups retain original expiries, never renewed rights.
-                for path in (Path(self.s.database).resolve().parent/'backups').glob('research-v1-*.sqlite3'):
+                folder=Path(self.s.database).resolve().parent/'backups'
+                for path in [*folder.glob('research-v1-*.sqlite3'),*folder.glob('overview-v1-*.sqlite3')]:
                     backup=sqlite3.connect(path)
                     try:
                         backup.execute('PRAGMA secure_delete=ON')
@@ -179,3 +180,22 @@ class Store:
                     self.db.execute('UPDATE preferences SET data=? WHERE workspace=? AND user=?',(json.dumps(p),row['workspace'],row['user']))
                 self.db.execute('INSERT INTO migrations VALUES(?,?,?)',('research-v1',time.time(),str(backup_path) if backup_path else None))
             return backup_path
+
+    def migrate_overview(self):
+        """Backup first; preserve all source/board IDs and ledger entries."""
+        self.migrate_research()
+        with self.lock:
+            if self.db.execute("SELECT 1 FROM migrations WHERE name='overview-v1'").fetchone():return None
+            path=None
+            if self.s.database!=':memory:':
+                folder=Path(self.s.database).resolve().parent/'backups';folder.mkdir(exist_ok=True)
+                path=folder/f'overview-v1-{int(time.time())}.sqlite3'
+                backup=sqlite3.connect(path)
+                try:self.db.backup(backup)
+                finally:backup.close()
+            with self.transaction():
+                for row in self.db.execute('SELECT workspace,user,data FROM preferences').fetchall():
+                    p=json.loads(row['data']);p.update(explore_view='overview',content_type='reporting',coverage_state='confirmed',outlet='',outlet_page=0,page=0)
+                    self.db.execute('UPDATE preferences SET data=? WHERE workspace=? AND user=?',(json.dumps(p),row['workspace'],row['user']))
+                self.db.execute('INSERT INTO migrations VALUES(?,?,?)',('overview-v1',time.time(),str(path) if path else None))
+            return path

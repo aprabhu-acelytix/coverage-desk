@@ -18,6 +18,7 @@ def envelope():
 
 
 def configure_analyzer(a):
+ a.classify_coverage.side_effect=lambda rows,cancel:{'findings':[{'source_id':r['id'],'coverage':{'content_type':'unknown','evidence':'','outlet_name':'','redistribution':''}} for r in rows]}
  a.plan.return_value={'interpretation':'Public coverage','queries':[{'query':'Acme repair','target':'news','purpose':'broad','rationale':'General'}]}
  a.analyze.side_effect=lambda rows,monitor,cancel: {'findings':[{'source_id':r['id'],'relevance':'relevant','campaign_relevance':'not_applicable','explanation':'Names the subject.','messages':[]} for r in rows]}
 
@@ -114,6 +115,7 @@ def test_planned_workflow_runs_plan_then_unique_evidence_analysis(monkeypatch):
   assert len(rows)==1
   return {'findings':[{'source_id':rows[0]['id'],'relevance':'relevant','campaign_relevance':'not_applicable','explanation':'Subject identified','messages':[]}]}
  a.analyze.side_effect=analyze
+ a.classify_coverage.side_effect=lambda rows,cancel:{'findings':[{'source_id':r['id'],'coverage':{'content_type':'unknown','evidence':'','outlet_name':'','redistribution':''}} for r in rows]}
  try:
   d.research(o,m['id'],threading.Event())
   assert a.plan.call_count==a.analyze.call_count==1 and not a.research.called

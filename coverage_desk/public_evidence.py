@@ -3,7 +3,7 @@
 DNS answers must all be public. Connect to the validated address while retaining
 the original hostname for TLS verification. Redirects repeat these checks.
 """
-from datetime import datetime
+from datetime import datetime,timezone
 from html.parser import HTMLParser
 import http.client
 import ipaddress
@@ -20,15 +20,31 @@ from .config import DeskError,require_live
 
 class Metadata(HTMLParser):
     def __init__(self):
-        super().__init__();self.dates=[];self.script=False;self.parts=[]
+        super().__init__();self.dates=[];self.publishers=[];self.authors=[];self.types=[];self.script=False;self.parts=[]
+        self.descriptions=[];self.article_bodies=[];self.paragraphs=[];self.paragraph=None;self.in_article=0;self.blocked=0;self.paywalled=False;self.canonical=None
     def handle_starttag(self,tag,attrs):
         attrs=dict(attrs)
+        if tag=='article':self.in_article+=1
+        if tag in ('script','style','noscript'):self.blocked+=1
+        if tag=='p' and self.in_article and not self.blocked:self.paragraph=[]
+        if tag=='link' and attrs.get('rel')=='canonical':self.canonical=attrs.get('href')
+        if tag=='meta' and (attrs.get('property') or attrs.get('name')) in ('og:description','description'):
+            self.descriptions.append(attrs.get('content',''))
         if tag=='meta' and (attrs.get('property') or attrs.get('name')) in ('article:published_time','datePublished'):
             self.dates.append(attrs.get('content',''))
+        if tag=='meta' and (attrs.get('property') or attrs.get('name'))=='og:site_name':
+            self.publishers.append(attrs.get('content',''))
+        if tag=='meta' and attrs.get('name')=='author':self.authors.append(attrs.get('content',''))
+        if tag=='meta' and attrs.get('property')=='og:type':self.types.append(attrs.get('content',''))
         if tag=='script' and attrs.get('type')=='application/ld+json':self.script=True;self.parts=[]
     def handle_data(self,data):
         if self.script:self.parts.append(data)
+        elif self.paragraph is not None and not self.blocked:self.paragraph.append(data)
     def handle_endtag(self,tag):
+        if tag in ('script','style','noscript'):self.blocked=max(0,self.blocked-1)
+        if tag=='article':self.in_article=max(0,self.in_article-1)
+        if tag=='p' and self.paragraph is not None:
+            self.paragraphs.append(''.join(self.paragraph).strip());self.paragraph=None
         if tag!='script' or not self.script:return
         self.script=False
         try:data=json.loads(''.join(self.parts))
@@ -38,7 +54,16 @@ class Metadata(HTMLParser):
             if not isinstance(item,dict):continue
             candidates=[item]+(item.get('@graph',[]) if isinstance(item.get('@graph'),list) else [])
             for node in candidates:
+                if isinstance(node,dict):
+                    if node.get('isAccessibleForFree') in (False,'false'):self.paywalled=True
+                    if isinstance(node.get('articleBody'),str):self.article_bodies.append(node['articleBody'])
                 if isinstance(node,dict) and isinstance(node.get('datePublished'),str):self.dates.append(node['datePublished'])
+                if isinstance(node,dict) and isinstance(node.get('publisher'),dict) and isinstance(node['publisher'].get('name'),str):self.publishers.append(node['publisher']['name'])
+                if isinstance(node,dict) and node.get('datePublished'):
+                    if isinstance(node.get('@type'),str):self.types.append(node['@type'])
+                    authors=node.get('author',[]);authors=authors if isinstance(authors,list) else [authors]
+                    for author in authors:
+                        if isinstance(author,dict) and isinstance(author.get('name'),str):self.authors.append(author['name'])
 
 
 def publication(text):
@@ -47,7 +72,7 @@ def publication(text):
     for value in parser.dates:
         try:
             parsed=datetime.fromisoformat(value.replace('Z','+00:00'))
-            if parsed.tzinfo:dates.add(parsed.isoformat())
+            if parsed.tzinfo:dates.add(parsed.astimezone(timezone.utc).isoformat())
         except (ValueError,TypeError):pass
     # Conflicting metadata and timezone-free dates remain reviewable, not guessed.
     return next(iter(dates)) if len(dates)==1 else None
@@ -100,10 +125,36 @@ def fetch_metadata(url,settings,store,cancel):
             body=b''.join(chunks)
             truncated=len(body)>262144
             body=body[:262144]
-            # Only publication metadata retained, never a whole publisher page.
-            date=publication(body.decode('utf-8',errors='replace'))
+            # Retain only publication/publisher metadata, never the whole page.
+            text=body.decode('utf-8',errors='replace');date=publication(text)
+            parser=Metadata();parser.feed(text)
+            precision='timestamp'
+            # Publisher date-only metadata is a calendar date, not an invented
+            # midnight publication timestamp. URL/retrieval dates are never used.
+            if not date:
+                from datetime import date as calendar_date
+                dates=set()
+                for value in parser.dates:
+                    try:
+                        if len(value)==10:dates.add(calendar_date.fromisoformat(value).isoformat())
+                    except (ValueError,TypeError):pass
+                if len(dates)==1 and all(len(x)==10 for x in parser.dates):date=next(iter(dates));precision='day'
+            names={name.strip()[:180] for name in parser.publishers if name.strip()}
+            profile={'publisher':next(iter(names)),'method':'Publisher HTML site-name metadata'} if len(names)==1 else {}
+            profile.update(authors=sorted({a[:180] for a in parser.authors if a})[:4],article_types=sorted({t[:100] for t in parser.types if t})[:4])
+            visible=parser.descriptions if parser.paywalled else (parser.article_bodies or parser.paragraphs or parser.descriptions)
+            excerpt=' '.join(' '.join(visible).split())[:1200]
+            canonical=urljoin(url,parser.canonical) if parser.canonical else None
+            # Only publisher-declared same-host article aliases are usable.
+            if canonical:
+                try:
+                    public_url(canonical)
+                    if urlsplit(canonical).hostname!=p.hostname or urlsplit(canonical).path in ('','/'):canonical=None
+                except (ValueError,DeskError):canonical=None
             return {'url':url,'original_url':original,'published':date,'method':'Publisher HTML publication metadata (bounded prefix)',
-                'truncated':truncated,
+                'truncated':truncated,'source_profile':profile,'date_precision':precision,'excerpt':excerpt,'canonical_url':canonical,
+                'access':'Public metadata summary; paywall respected' if parser.paywalled else 'Bounded public publisher excerpt',
+                'fetch_version':2,'checked':time.time(),
                 'status':'Verified publication metadata' if date else 'Publication metadata absent or ambiguous'}
         finally:connection.close()
     raise DeskError('Public source exceeded the redirect limit.')

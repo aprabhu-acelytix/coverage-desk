@@ -89,17 +89,34 @@ class CodexAnalyzer:
     def analyze(self,sources,monitor,cancel):
         require_live(self.s)
         if cancel.is_set():raise DeskError('Cancelled before analysis.')
-        from .models import Analysis
-        selected = [{'id':r['id'],'title':r['title'],'text':r['text'],'access':r['access'],'provider':r['provider']} for r in sources]
+        from .models import LiveAnalysis
+        selected = [{'id':r['id'],'title':r['title'],'text':r['text'],'url':r.get('url',''),'access':r['access'],'provider':r['provider']} for r in sources]
+        for result,source in zip(selected,sources):
+            profile=source.get('provenance',{}).get('publication_check',{}).get('source_profile',{})
+            if profile:result['publisher_metadata']={k:profile[k] for k in ('publisher','authors','article_types') if k in profile}
         if any(len(r['text'])>self.s.input_item for r in selected):
             raise DeskError('One source exceeds the configured AI input limit. Its full retained text remains inspectable.')
         criteria={k:monitor[k] for k in ('name','aliases','domains','notes','campaign','messages')}
-        payload={'sources':selected,'criteria':criteria,'schema':Analysis.model_json_schema()}
+        payload={'sources':selected,'criteria':criteria,'schema':LiveAnalysis.model_json_schema()}
         if len(json.dumps(payload))>self.s.input_job:
             raise DeskError(f'Select fewer findings; the analysis input limit is {self.s.input_job:,} characters.')
         status=self.status()
         if status['state']!='Ready':
             raise DeskError(status['state']+'. Run: .venv/Scripts/python -m coverage_desk runtime-login')
+        self.store.consume('ai')
+        return self.call('analyze',payload,cancel)
+
+    def classify_coverage(self,sources,cancel):
+        from .models import CoverageAnalysis
+        require_live(self.s)
+        if cancel.is_set():raise DeskError('Cancelled before content-type assessment.')
+        selected=[{k:r.get(k,'') for k in ('id','title','text','url','access')} for r in sources]
+        for result,source in zip(selected,sources):
+            profile=source.get('provenance',{}).get('publication_check',{}).get('source_profile',{})
+            result['publisher_metadata']={k:profile[k] for k in ('publisher','authors','article_types') if k in profile}
+        payload={'operation':'classify_coverage','sources':selected,'schema':CoverageAnalysis.model_json_schema()}
+        if any(len(r['text'])>self.s.input_item for r in selected) or len(json.dumps(payload))>self.s.input_job:raise DeskError('Select fewer articles for content-type assessment.')
+        if self.status()['state']!='Ready':raise DeskError('Managed runtime is not ready. Run runtime-status locally.')
         self.store.consume('ai')
         return self.call('analyze',payload,cancel)
 
