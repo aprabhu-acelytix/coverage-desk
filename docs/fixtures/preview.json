@@ -1,0 +1,90 @@
+{
+  "type": "modal",
+  "title": {
+    "type": "plain_text",
+    "text": "Fixture preview",
+    "emoji": false
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Close",
+    "emoji": false
+  },
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Coverage briefing · 27 Sep 2026",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "What changed\n• [Fixture] Northstar · synthetic fixture announces a repair program\n\nMessage evidence\nSource excerpts are linked below. Private monitor assessments are not included.\n\nWorth discussing\nWhat additional reporting would help us interpret this coverage?",
+        "emoji": false
+      }
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Sources",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "<https://example.com/fixture/repair|[Fixture] Northstar · synthetic fixture announces a repair program>\nSynthetic fixture · excerpt only",
+        "verbatim": true
+      }
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Team perspectives",
+        "emoji": false
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Teammate",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Synthetic teammate perspective for offline payload review only.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Coverage Desk · Reviewed snapshot of selected retrieved sources. Excerpts are not full articles.",
+          "verbatim": true
+        }
+      ]
+    }
+  ],
+  "private_metadata": "{\"id\": \"fixture\"}",
+  "callback_id": "publish_submit",
+  "submit": {
+    "type": "plain_text",
+    "text": "Publish",
+    "emoji": false
+  }
+}

@@ -1,0 +1,312 @@
+{
+  "type": "modal",
+  "title": {
+    "type": "plain_text",
+    "text": "New coverage search",
+    "emoji": false
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Close",
+    "emoji": false
+  },
+  "blocks": [
+    {
+      "type": "input",
+      "block_id": "name",
+      "label": {
+        "type": "plain_text",
+        "text": "Company, brand, or person",
+        "emoji": false
+      },
+      "optional": false,
+      "element": {
+        "type": "plain_text_input",
+        "action_id": "value",
+        "multiline": false,
+        "max_length": 100
+      },
+      "hint": {
+        "type": "plain_text",
+        "text": "Example: Patagonia",
+        "emoji": false
+      }
+    },
+    {
+      "type": "input",
+      "block_id": "campaign",
+      "label": {
+        "type": "plain_text",
+        "text": "Campaign or product focus",
+        "emoji": false
+      },
+      "optional": true,
+      "element": {
+        "type": "plain_text_input",
+        "action_id": "value",
+        "multiline": false,
+        "max_length": 300
+      },
+      "hint": {
+        "type": "plain_text",
+        "text": "Optional. General coverage is collected too.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "input",
+      "block_id": "messages",
+      "label": {
+        "type": "plain_text",
+        "text": "Messages to check",
+        "emoji": false
+      },
+      "optional": true,
+      "element": {
+        "type": "plain_text_input",
+        "action_id": "value",
+        "multiline": true,
+        "max_length": 3000
+      },
+      "hint": {
+        "type": "plain_text",
+        "text": "Optional, one per line. Example: The company supports repairing clothing. AI checks these only when you ask.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "input",
+      "block_id": "freshness",
+      "label": {
+        "type": "plain_text",
+        "text": "Time range",
+        "emoji": false
+      },
+      "element": {
+        "type": "static_select",
+        "action_id": "value",
+        "placeholder": {
+          "type": "plain_text",
+          "text": "Choose",
+          "emoji": false
+        },
+        "options": [
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Past day",
+              "emoji": false
+            },
+            "value": "pd"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Past week",
+              "emoji": false
+            },
+            "value": "pw"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Past month",
+              "emoji": false
+            },
+            "value": "pm"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Past year",
+              "emoji": false
+            },
+            "value": "py"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Any time",
+              "emoji": false
+            },
+            "value": "any"
+          }
+        ],
+        "initial_option": {
+          "text": {
+            "type": "plain_text",
+            "text": "Past week",
+            "emoji": false
+          },
+          "value": "pw"
+        }
+      }
+    },
+    {
+      "type": "input",
+      "block_id": "sources",
+      "label": {
+        "type": "plain_text",
+        "text": "Where to search",
+        "emoji": false
+      },
+      "hint": {
+        "type": "plain_text",
+        "text": "Social sites use Brave’s public web index, not a direct platform connection. Coverage may be limited.",
+        "emoji": false
+      },
+      "element": {
+        "type": "multi_static_select",
+        "action_id": "value",
+        "options": [
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "News",
+              "emoji": false
+            },
+            "value": "news"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Web",
+              "emoji": false
+            },
+            "value": "web"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Instagram",
+              "emoji": false
+            },
+            "value": "instagram"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "X",
+              "emoji": false
+            },
+            "value": "x"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "LinkedIn",
+              "emoji": false
+            },
+            "value": "linkedin"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Facebook",
+              "emoji": false
+            },
+            "value": "facebook"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "TikTok",
+              "emoji": false
+            },
+            "value": "tiktok"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Reddit",
+              "emoji": false
+            },
+            "value": "reddit"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "YouTube",
+              "emoji": false
+            },
+            "value": "youtube"
+          }
+        ],
+        "initial_options": [
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "News",
+              "emoji": false
+            },
+            "value": "news"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Web",
+              "emoji": false
+            },
+            "value": "web"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Instagram",
+              "emoji": false
+            },
+            "value": "instagram"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "X",
+              "emoji": false
+            },
+            "value": "x"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "LinkedIn",
+              "emoji": false
+            },
+            "value": "linkedin"
+          }
+        ]
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "More options",
+            "emoji": false
+          },
+          "action_id": "monitor_options",
+          "value": "show"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Only source collection starts on save. AI analysis and publishing are separate actions.",
+          "verbatim": true
+        }
+      ]
+    }
+  ],
+  "private_metadata": "{\"id\": null, \"expanded\": false, \"values\": {}}",
+  "callback_id": "monitor_submit",
+  "submit": {
+    "type": "plain_text",
+    "text": "Save & collect",
+    "emoji": false
+  }
+}

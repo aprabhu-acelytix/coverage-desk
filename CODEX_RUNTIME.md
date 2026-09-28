@@ -1,0 +1,88 @@
+# Codex runtime — personal ChatGPT sign-in
+
+This document changes how the app obtains AI analysis; it does not turn Coverage Desk into a chatbot or a public AI service. Implement one small adapter, not a general agent platform.
+
+## 1. Supported route and boundary
+
+**Active authorization:** The current goal already authorizes owner-operated live runtime validation, within a persistent build-wide cap of 10 AI jobs including retries. Do not ask again for live-call approval. Managed sign-in may still require the owner's browser intervention. No API-key fallback, token copying, shared inference, scheduled AI or deployment is authorized.
+
+Use the official Codex Python SDK (`openai-codex`), which controls a local App Server. Check and pin a compatible published SDK/runtime pair. Use direct App Server stdio only when a documented SDK gap requires it; do not create an HTTP proxy or implement both routes. [R1, R2]
+
+The runtime must use **Codex-managed ChatGPT authentication**, not external-token mode. Codex performs its own login, storage, and refresh. Confirm the active authentication method through the documented account surface, not by opening credential files. Reject API-key, external-token, third-party-provider, and unauthenticated modes for live analysis. Do not use `OPENAI_API_KEY`, `CODEX_API_KEY`, a custom model endpoint, browser cookies, or copied OAuth tokens. [R2, R3]
+
+This is a local, owner-operated demonstration. Technical SDK support does not establish permission for any conceivable deployment. Personal-plan restrictions include account sharing and third-party-service use; a hosted/team-wide inference product requires a separately verified arrangement. Do not market this design as a universal “Sign in with ChatGPT” backend for Slack users. [R4]
+
+Only the configured Slack owner can request a live AI job. Teammates collaborate on explicitly shared artifacts; they do not use the owner's session. No scheduled AI, public endpoint, background polling for AI work, account pooling, automatic credit purchases, allowance resets, or separately billed fallback. Normal subscription limits apply. [R5]
+
+## 2. Credentials and process setup
+
+`COVERAGE_CODEX_HOME` is an **application setting**, not a Codex configuration key. Expand `~` and pass that resolved directory as `CODEX_HOME` only to the runtime/login child process using the SDK's documented process configuration. Default to `~/.coverage-desk-codex`, outside the repository and synced folders. Do not globally modify the developer's `CODEX_HOME`.
+
+The owner signs in to that dedicated runtime home through the normal Codex browser flow. A separate local sign-in can be required even when the development session is already signed in; it uses the same subscription, not a new API key. Do not copy an existing `auth.json`. Prefer the supported OS credential store; where unavailable, clearly disclose Codex's file storage and restrict filesystem access. Verify that the chosen home/store combination does not change unrelated Codex sessions. [R3]
+
+Add simple local auth/status commands using the **same executable and home as the runtime**. Never launch login from an untrusted Slack action, display login challenges in shared channels, or log raw account responses. The app may tell the owner to finish sign-in locally. `CODEX_BIN`, when supplied, is a local executable path, not an arbitrary shell command.
+
+Do not ask the owner to expose private configuration for diagnosis. A diagnostic summary should contain only runtime/SDK versions, auth-mode status, model availability, control checks, and categorized errors.
+
+## 3. Minimal analysis job
+
+A proposed application-level operation is `analyze(evidence, criteria, actor)`; this is **not an SDK method name**. Codex must use the installed SDK's actual documented interfaces.
+
+1. Verify the workspace, acting Slack user, ownership, selected records, source-use permission, and requested operation in backend code. The UI is not an authorization boundary.
+2. Freeze the authorized source text and monitor criteria for this job. Do not add team notes, other client records, a development chat, arbitrary attachments, or Slack history. Treat source text as data, never as instructions.
+3. Check ChatGPT auth and runtime controls before starting inference. Choose a model actually listed for the account; a configured unavailable model gives an actionable error rather than a silent substitution.
+4. Start a fresh, isolated analytical thread. Use documented per-turn structured output (`outputSchema` in App Server) and compatible SDK support. Use ephemeral context where supported; otherwise disclose and bound local retention. Do not resume the development thread or reuse a conversation across private monitors. [R2]
+5. Collect the completed final response, not partial tokens or reasoning. Validate the JSON shape, selected source IDs, exact evidence spans, and size limits in ordinary code before saving/displaying it. The model supplies classifications/text only; it cannot choose database IDs, visibility, posting destinations, or actions.
+6. Recheck access before publishing the result into a view or board. Mark timeout, cancellation, invalid evidence, or uncertain completion explicitly. Never automatically rerun a job whose remote outcome is unknown.
+
+Use one concurrent AI job, a small bounded queue, input/output limits, and a configurable timeout. Deduplicate repeated Slack action deliveries. Read-only account/rate-limit metadata can improve owner-facing status when supported; no credit-purchase or reset methods. A timeout or output-size check is not a guarantee of zero server-side consumption. [R2]
+
+## 4. Runtime tool and secret isolation
+
+The analysis worker is intentionally **not** a coding agent. Retrieval, database writes, and Slack posts belong to trusted application code.
+
+Generate a dedicated, version-appropriate runtime config after checking official documentation and the installed schema. Do not ship guessed flags. Constrain the worker with all of the following:
+
+- Clean working directory outside the repository, with no inherited project instructions, personal memories, plugins, MCP servers, skills, or hooks. Do not import the build agent's configuration or history.
+- An allowlisted subprocess environment. Retain only variables required for the executable, OS credential access, and approved authentication/transport. Exclude Slack/search/YouTube keys and unrelated service secrets. Use safe argument arrays/stdio, never shell interpolation of source text.
+- Disable model-accessible shell/exec, code-execution alternatives, editing, browsing, connected tools, and subagent delegation through supported controls. Do not assume an empty dynamic-tools list removes built-in tools. Verify the effective configuration. [R6]
+- No privilege escalation or auto-approved actions. Deny unexpected tool/approval requests and terminate that job safely.
+- Least-privilege filesystem/tool network access where supported. **Read-only does not mean unreadable:** the documented sandbox can have broad read access unless explicitly restricted. Do not claim an empty working directory or `approvalPolicy=never` alone prevents file reads or execution. [R2, R6]
+
+Codex itself still needs outbound connectivity for authenticated inference. Do not block the entire child process network while expecting model access; distinguish model transport from tool network permissions.
+
+Use harmless canary files and mocks to test isolation. Never prove a secret-read denial by placing real credentials in a prompt. When the installed model/runtime cannot support the intended boundary, select a supported compatible configuration or mark live AI unavailable; continue offline implementation rather than weakening controls. Keep the solution small—do not build a new sandbox platform.
+
+## 5. Data handling and user experience
+
+This route follows ChatGPT/Codex data controls, **not the ordinary API defaults**. For personal Plus/Pro accounts, OpenAI states that conversations may be used to improve models unless training is turned off in ChatGPT data controls. Explain that before sending real source material. Public/synthetic evidence only for this demo; no confidential client material. Ephemeral/local cleanup does not imply zero OpenAI retention. [R5]
+
+Show a compact owner-facing state: `Demo fixtures`, `Ready`, `Sign-in needed`, `Working`, `Usage limit`, or `Unavailable`. Keep sources and boards usable independently. Give the owner a Cancel action while work runs. Other users should see the appropriate saved assessment or “AI analysis is owner-operated in this prototype,” not a misleading authentication button.
+
+Shared analysis must never reveal the owner's email, session identifiers, detailed subscription usage, credential location, or development conversation. Preserve the distinction between source evidence, AI assessment, and human perspective.
+
+## 6. Focused tests and live verification
+
+Add focused tests alongside ordinary app tests:
+
+- Demo mode never starts a live Codex job; live failures never become fixture success.
+- Non-owner and wrong-workspace requests fail before enqueue and are rechecked by the worker.
+- Signed-out, API-auth, usage-limit, and unsupported-runtime cases give truthful states.
+- Subprocess environment is allowlisted; no app secrets or project files enter analysis inputs.
+- Fresh job context, output schema, exact evidence checks, and invalid-output rejection.
+- Cancellation, timeouts, queue limits, duplicate Slack deliveries, and no automatic retry after uncertain completion.
+- Collaborators can save/comment/review/edit authorized shared artifacts without invoking AI.
+- Private configuration/output cannot leak through a shared cache, board, draft, or status message.
+
+Offline mocks establish application behavior, not live runtime isolation. After owner approval, inspect effective runtime controls and run **one tiny synthetic analysis** with no tools or external source fetching. Record actual SDK/runtime versions, auth mode, model, outcome, and validation checks without account details. Report a blocked live check honestly.
+
+## References
+
+Official documentation checked while preparing this revision on 27 September 2026. Recheck against the version actually installed. The process restrictions above are design requirements, not claims of a completed implementation.
+
+- [R1] Codex SDK: `https://developers.openai.com/codex/sdk/`
+- [R2] App Server protocol/auth/structured outputs/sandbox: `https://developers.openai.com/codex/app-server/`
+- [R3] Codex authentication and credential storage: `https://developers.openai.com/codex/auth/`
+- [R4] Personal plan restrictions: `https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro`
+- [R5] Codex plan usage and data controls: `https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan`
+- [R6] Codex configuration: `https://developers.openai.com/codex/config-reference/`

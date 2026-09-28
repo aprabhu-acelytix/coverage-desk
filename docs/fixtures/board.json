@@ -1,0 +1,222 @@
+{
+  "type": "home",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Coverage Desk",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Explore",
+            "emoji": false
+          },
+          "action_id": "nav_explore",
+          "value": "explore"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Team board",
+            "emoji": false
+          },
+          "action_id": "nav_board",
+          "value": "board"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Briefings",
+            "emoji": false
+          },
+          "action_id": "nav_briefings",
+          "value": "briefings"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Team board",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Save useful findings and discuss them with your team.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "How it works",
+            "emoji": false
+          },
+          "action_id": "tab_help",
+          "value": "board"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Settings",
+            "emoji": false
+          },
+          "action_id": "settings",
+          "value": "-"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Demo · Synthetic examples, no live retrieval or AI.",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "static_select",
+          "action_id": "board_filter",
+          "placeholder": {
+            "type": "plain_text",
+            "text": "Choose",
+            "emoji": false
+          },
+          "options": [
+            {
+              "text": {
+                "type": "plain_text",
+                "text": "All saved",
+                "emoji": false
+              },
+              "value": "all"
+            },
+            {
+              "text": {
+                "type": "plain_text",
+                "text": "Workspace shared",
+                "emoji": false
+              },
+              "value": "shared"
+            },
+            {
+              "text": {
+                "type": "plain_text",
+                "text": "Private to me",
+                "emoji": false
+              },
+              "value": "private"
+            }
+          ],
+          "initial_option": {
+            "text": {
+              "type": "plain_text",
+              "text": "All saved",
+              "emoji": false
+            },
+            "value": "all"
+          }
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Create briefing",
+            "emoji": false
+          },
+          "action_id": "new_briefing",
+          "value": "-",
+          "style": "primary"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*<https://example.com/fixture/repair|[Fixture] Northstar · synthetic fixture announces a repair program>*",
+        "verbatim": true
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "example.com · 2026-09-20",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Use in briefing · Workspace shared · 1 perspectives",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View finding",
+            "emoji": false
+          },
+          "action_id": "inspect_board",
+          "value": "43416d0b68cf42dabd937a506c864ab1"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Showing 1–1 of 1",
+          "verbatim": true
+        }
+      ]
+    }
+  ]
+}

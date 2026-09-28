@@ -1,0 +1,184 @@
+{
+  "type": "home",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Coverage Desk",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Explore",
+            "emoji": false
+          },
+          "action_id": "nav_explore",
+          "value": "explore"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Team board",
+            "emoji": false
+          },
+          "action_id": "nav_board",
+          "value": "board"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Briefings",
+            "emoji": false
+          },
+          "action_id": "nav_briefings",
+          "value": "briefings"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Briefings",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Turn selected findings into an editable, source-linked update.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "How it works",
+            "emoji": false
+          },
+          "action_id": "tab_help",
+          "value": "briefings"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Settings",
+            "emoji": false
+          },
+          "action_id": "settings",
+          "value": "-"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Demo · Synthetic examples, no live retrieval or AI.",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Create briefing",
+            "emoji": false
+          },
+          "action_id": "new_briefing",
+          "value": "-",
+          "style": "primary"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Coverage briefing · 27 Sep 2026*",
+        "verbatim": true
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Draft · Source-linked · Workspace shared · 1 sources",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View draft",
+            "emoji": false
+          },
+          "action_id": "draft_detail",
+          "value": "0883633796934ccc818c1138664bceac"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Edit",
+            "emoji": false
+          },
+          "action_id": "edit_draft",
+          "value": "0883633796934ccc818c1138664bceac"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Preview & publish",
+            "emoji": false
+          },
+          "action_id": "preview",
+          "value": "0883633796934ccc818c1138664bceac"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Showing 1–1 of 1",
+          "verbatim": true
+        }
+      ]
+    }
+  ]
+}

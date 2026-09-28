@@ -1,0 +1,40 @@
+{
+  "type": "modal",
+  "title": {
+    "type": "plain_text",
+    "text": "How team board works",
+    "emoji": false
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Close",
+    "emoji": false
+  },
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Team board",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Save useful findings and discuss them with your team.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Findings saved from Explore appear here. Private findings are visible only to you. Workspace-shared findings let teammates add a perspective and update review status. Open a finding to contribute. Select saved findings when creating a briefing.",
+        "emoji": false
+      }
+    }
+  ],
+  "private_metadata": "{}"
+}

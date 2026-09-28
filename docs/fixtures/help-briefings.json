@@ -1,0 +1,40 @@
+{
+  "type": "modal",
+  "title": {
+    "type": "plain_text",
+    "text": "How briefings works",
+    "emoji": false
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Close",
+    "emoji": false
+  },
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Briefings",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Turn selected findings into an editable, source-linked update.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Create a draft from up to five saved findings. Edit the wording and inspect the attached evidence. Only the owner can start AI or publish. Preview & publish shows the exact content and destination before anything is sent.",
+        "emoji": false
+      }
+    }
+  ],
+  "private_metadata": "{}"
+}

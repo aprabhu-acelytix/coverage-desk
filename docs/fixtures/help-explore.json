@@ -1,0 +1,40 @@
+{
+  "type": "modal",
+  "title": {
+    "type": "plain_text",
+    "text": "How explore works",
+    "emoji": false
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Close",
+    "emoji": false
+  },
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Explore",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Find coverage and check what it says.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Choose or create a coverage search. Collect sources, open a finding to inspect the available evidence, then save useful findings to your board. AI analysis is optional and only the owner can start it. Filters change your view, never the stored findings.",
+        "emoji": false
+      }
+    }
+  ],
+  "private_metadata": "{}"
+}

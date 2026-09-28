@@ -1,0 +1,179 @@
+{
+  "type": "home",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Coverage Desk",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Explore",
+            "emoji": false
+          },
+          "action_id": "nav_explore",
+          "value": "explore"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Team board",
+            "emoji": false
+          },
+          "action_id": "nav_board",
+          "value": "board"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Briefings",
+            "emoji": false
+          },
+          "action_id": "nav_briefings",
+          "value": "briefings"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Explore",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Find coverage and check what it says.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "How it works",
+            "emoji": false
+          },
+          "action_id": "tab_help",
+          "value": "explore"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Settings",
+            "emoji": false
+          },
+          "action_id": "settings",
+          "value": "-"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Demo · Synthetic examples, no live retrieval or AI.",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Start with a company, brand, or person. Add campaign messages only if you want to check for them.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "New coverage search",
+            "emoji": false
+          },
+          "action_id": "new_monitor",
+          "value": "-",
+          "style": "primary"
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Filters",
+            "emoji": false
+          },
+          "action_id": "filters",
+          "value": "-"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Add a source",
+            "emoji": false
+          },
+          "action_id": "manual",
+          "value": "-"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "All sources · All assessments",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Findings will appear here after collection. You can also add a source yourself.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "0 findings",
+          "verbatim": true
+        }
+      ]
+    }
+  ]
+}

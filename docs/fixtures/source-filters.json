@@ -1,0 +1,224 @@
+{
+  "type": "modal",
+  "title": {
+    "type": "plain_text",
+    "text": "Filter findings",
+    "emoji": false
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Close",
+    "emoji": false
+  },
+  "blocks": [
+    {
+      "type": "input",
+      "block_id": "source_filter",
+      "label": {
+        "type": "plain_text",
+        "text": "Platform or source",
+        "emoji": false
+      },
+      "element": {
+        "type": "static_select",
+        "action_id": "value",
+        "placeholder": {
+          "type": "plain_text",
+          "text": "Choose",
+          "emoji": false
+        },
+        "options": [
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "All sources",
+              "emoji": false
+            },
+            "value": "all"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "News search",
+              "emoji": false
+            },
+            "value": "news"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Other web pages",
+              "emoji": false
+            },
+            "value": "web"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "All social sites",
+              "emoji": false
+            },
+            "value": "social"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Instagram",
+              "emoji": false
+            },
+            "value": "instagram"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "X",
+              "emoji": false
+            },
+            "value": "x"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "LinkedIn",
+              "emoji": false
+            },
+            "value": "linkedin"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Facebook",
+              "emoji": false
+            },
+            "value": "facebook"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "TikTok",
+              "emoji": false
+            },
+            "value": "tiktok"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Reddit",
+              "emoji": false
+            },
+            "value": "reddit"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "YouTube",
+              "emoji": false
+            },
+            "value": "youtube"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Manual contributions",
+              "emoji": false
+            },
+            "value": "manual"
+          }
+        ],
+        "initial_option": {
+          "text": {
+            "type": "plain_text",
+            "text": "All sources",
+            "emoji": false
+          },
+          "value": "all"
+        }
+      }
+    },
+    {
+      "type": "input",
+      "block_id": "filter",
+      "label": {
+        "type": "plain_text",
+        "text": "Assessment",
+        "emoji": false
+      },
+      "element": {
+        "type": "static_select",
+        "action_id": "value",
+        "placeholder": {
+          "type": "plain_text",
+          "text": "Choose",
+          "emoji": false
+        },
+        "options": [
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "All assessments",
+              "emoji": false
+            },
+            "value": "all"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Relevant",
+              "emoji": false
+            },
+            "value": "relevant"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Needs review",
+              "emoji": false
+            },
+            "value": "uncertain"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Likely a different subject",
+              "emoji": false
+            },
+            "value": "not_relevant"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Not analyzed yet",
+              "emoji": false
+            },
+            "value": "unassessed"
+          }
+        ],
+        "initial_option": {
+          "text": {
+            "type": "plain_text",
+            "text": "All assessments",
+            "emoji": false
+          },
+          "value": "all"
+        }
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Filters only change this view. No searches run and no findings are removed.",
+          "verbatim": true
+        }
+      ]
+    }
+  ],
+  "private_metadata": "{}",
+  "callback_id": "filters_submit",
+  "submit": {
+    "type": "plain_text",
+    "text": "Apply filters",
+    "emoji": false
+  }
+}

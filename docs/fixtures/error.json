@@ -1,0 +1,283 @@
+{
+  "type": "home",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Coverage Desk",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Explore",
+            "emoji": false
+          },
+          "action_id": "nav_explore",
+          "value": "explore"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Team board",
+            "emoji": false
+          },
+          "action_id": "nav_board",
+          "value": "board"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Briefings",
+            "emoji": false
+          },
+          "action_id": "nav_briefings",
+          "value": "briefings"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Explore",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Find coverage and check what it says.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "How it works",
+            "emoji": false
+          },
+          "action_id": "tab_help",
+          "value": "explore"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Settings",
+            "emoji": false
+          },
+          "action_id": "settings",
+          "value": "-"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Fixture work · Usage limit — fixture state; no live request.",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Demo · Synthetic examples, no live retrieval or AI.",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "static_select",
+          "action_id": "monitor_select",
+          "placeholder": {
+            "type": "plain_text",
+            "text": "Choose",
+            "emoji": false
+          },
+          "options": [
+            {
+              "text": {
+                "type": "plain_text",
+                "text": "Northstar · synthetic fixture",
+                "emoji": false
+              },
+              "value": "c09189b63c2d4a20b75f568887bed57f"
+            }
+          ],
+          "initial_option": {
+            "text": {
+              "type": "plain_text",
+              "text": "Northstar · synthetic fixture",
+              "emoji": false
+            },
+            "value": "c09189b63c2d4a20b75f568887bed57f"
+          }
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "General coverage · Past week",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Collect coverage",
+            "emoji": false
+          },
+          "action_id": "refresh",
+          "value": "c09189b63c2d4a20b75f568887bed57f",
+          "style": "primary"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "New coverage search",
+            "emoji": false
+          },
+          "action_id": "new_monitor",
+          "value": "-"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Edit search",
+            "emoji": false
+          },
+          "action_id": "edit_monitor",
+          "value": "c09189b63c2d4a20b75f568887bed57f"
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Filters",
+            "emoji": false
+          },
+          "action_id": "filters",
+          "value": "-"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Add a source",
+            "emoji": false
+          },
+          "action_id": "manual",
+          "value": "-"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "All sources · All assessments",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Show 1 new findings",
+            "emoji": false
+          },
+          "action_id": "show_new",
+          "value": "-"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Last collection: Ready · 1 findings",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Collection details",
+            "emoji": false
+          },
+          "action_id": "run_status",
+          "value": "45454b7d0283449fa35ebb5e524d62f4"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Findings will appear here after collection. You can also add a source yourself.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "0 findings",
+          "verbatim": true
+        }
+      ]
+    }
+  ]
+}

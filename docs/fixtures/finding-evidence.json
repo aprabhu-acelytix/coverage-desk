@@ -1,0 +1,160 @@
+{
+  "type": "modal",
+  "title": {
+    "type": "plain_text",
+    "text": "Finding details",
+    "emoji": false
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Close",
+    "emoji": false
+  },
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*<https://example.com/fixture/repair|[Fixture] Northstar · synthetic fixture announces a repair program>*",
+        "verbatim": true
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "example.com · 2026-09-20",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Overview",
+            "emoji": false
+          },
+          "action_id": "detail_overview",
+          "value": "overview"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Evidence",
+            "emoji": false
+          },
+          "action_id": "detail_evidence",
+          "value": "evidence"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Source details",
+            "emoji": false
+          },
+          "action_id": "detail_source",
+          "value": "source"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Discussion",
+            "emoji": false
+          },
+          "action_id": "detail_discussion",
+          "value": "discussion"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Available source text",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Northstar · synthetic fixture says its new repair program helps customers keep products longer.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "AI assessment",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Needs review · Fixture assessment; no live inference.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Products can be repaired.\nNot enough evidence · Demo fixture only.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "AI interpretations need review. Matching quotes verify the words, not the conclusion.",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Add perspective",
+            "emoji": false
+          },
+          "action_id": "perspective",
+          "value": "43416d0b68cf42dabd937a506c864ab1"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Review status",
+            "emoji": false
+          },
+          "action_id": "review",
+          "value": "43416d0b68cf42dabd937a506c864ab1"
+        }
+      ]
+    }
+  ],
+  "private_metadata": "{\"id\": \"43416d0b68cf42dabd937a506c864ab1\", \"board\": true, \"tab\": \"evidence\", \"page\": 0}"
+}

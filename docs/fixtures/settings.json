@@ -1,0 +1,137 @@
+{
+  "type": "modal",
+  "title": {
+    "type": "plain_text",
+    "text": "Settings & sources",
+    "emoji": false
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Close",
+    "emoji": false
+  },
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Sources & permissions",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Brave News / Web: Awaiting key or storage permission.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Manual contributions: Available. Submitted URLs are never fetched automatically.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "YouTube Data API: Not connected. YouTube web discovery is available separately.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "X · Instagram · TikTok · Reddit: Not integrated. Social links found by Web Search are web-discovered only.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "AI & data",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Only the configured owner initiates Codex analysis. Selected source evidence and monitor criteria go to ChatGPT/Codex; team notes do not. ChatGPT data controls apply. Local execution does not mean offline inference.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Seven-day maximum retention. Local SQLite is not encrypted. Already published Slack copies and provider-held data are not deleted by local expiry.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Scheduling",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Optional source-refresh previews. Disabled until configured locally and explicitly enabled by the owner. Never scheduled AI or automatic channel posts.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "Source requests: 0 of 30 · AI jobs: 0 of 10",
+        "emoji": false
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "plain_text",
+        "text": "AI connection: Demo fixtures",
+        "emoji": false
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Check AI connection",
+            "emoji": false
+          },
+          "action_id": "runtime_check",
+          "value": "-"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Configure schedule",
+            "emoji": false
+          },
+          "action_id": "schedule",
+          "value": "-"
+        }
+      ]
+    }
+  ],
+  "private_metadata": "{}"
+}
