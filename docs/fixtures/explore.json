@@ -2,14 +2,6 @@
   "type": "home",
   "blocks": [
     {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": "Coverage Desk",
-        "emoji": false
-      }
-    },
-    {
       "type": "actions",
       "elements": [
         {
@@ -20,7 +12,8 @@
             "emoji": false
           },
           "action_id": "nav_explore",
-          "value": "explore"
+          "value": "explore",
+          "style": "primary"
         },
         {
           "type": "button",
@@ -45,55 +38,11 @@
       ]
     },
     {
-      "type": "divider"
-    },
-    {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": "Explore",
-        "emoji": false
-      }
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "plain_text",
-        "text": "Find coverage and check what it says.",
-        "emoji": false
-      }
-    },
-    {
-      "type": "actions",
-      "elements": [
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "How it works",
-            "emoji": false
-          },
-          "action_id": "tab_help",
-          "value": "explore"
-        },
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "Settings",
-            "emoji": false
-          },
-          "action_id": "settings",
-          "value": "-"
-        }
-      ]
-    },
-    {
       "type": "context",
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "Demo · Synthetic examples, no live retrieval or AI.",
+          "text": "Demo: synthetic evidence, no live research.",
           "verbatim": true
         }
       ]
@@ -116,7 +65,7 @@
                 "text": "Northstar · synthetic fixture",
                 "emoji": false
               },
-              "value": "c09189b63c2d4a20b75f568887bed57f"
+              "value": "24946032e29a4bfa95f936ad51dc9ff4"
             }
           ],
           "initial_option": {
@@ -125,8 +74,29 @@
               "text": "Northstar · synthetic fixture",
               "emoji": false
             },
-            "value": "c09189b63c2d4a20b75f568887bed57f"
+            "value": "24946032e29a4bfa95f936ad51dc9ff4"
           }
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Refresh",
+            "emoji": false
+          },
+          "action_id": "refresh",
+          "value": "24946032e29a4bfa95f936ad51dc9ff4",
+          "style": "primary"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Search options",
+            "emoji": false
+          },
+          "action_id": "search_options",
+          "value": "24946032e29a4bfa95f936ad51dc9ff4"
         }
       ]
     },
@@ -135,7 +105,7 @@
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "General coverage · Past week",
+          "text": "General coverage | Past week | AI-planned Brave",
           "verbatim": true
         }
       ]
@@ -144,41 +114,48 @@
       "type": "actions",
       "elements": [
         {
-          "type": "button",
-          "text": {
+          "type": "static_select",
+          "action_id": "result_filter",
+          "placeholder": {
             "type": "plain_text",
-            "text": "Collect coverage",
+            "text": "Choose",
             "emoji": false
           },
-          "action_id": "refresh",
-          "value": "c09189b63c2d4a20b75f568887bed57f",
-          "style": "primary"
+          "options": [
+            {
+              "text": {
+                "type": "plain_text",
+                "text": "Relevant (0)",
+                "emoji": false
+              },
+              "value": "relevant"
+            },
+            {
+              "text": {
+                "type": "plain_text",
+                "text": "Needs review (1)",
+                "emoji": false
+              },
+              "value": "review"
+            },
+            {
+              "text": {
+                "type": "plain_text",
+                "text": "All collected (1)",
+                "emoji": false
+              },
+              "value": "all"
+            }
+          ],
+          "initial_option": {
+            "text": {
+              "type": "plain_text",
+              "text": "Needs review (1)",
+              "emoji": false
+            },
+            "value": "review"
+          }
         },
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "New coverage search",
-            "emoji": false
-          },
-          "action_id": "new_monitor",
-          "value": "-"
-        },
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "Edit search",
-            "emoji": false
-          },
-          "action_id": "edit_monitor",
-          "value": "c09189b63c2d4a20b75f568887bed57f"
-        }
-      ]
-    },
-    {
-      "type": "actions",
-      "elements": [
         {
           "type": "button",
           "text": {
@@ -188,75 +165,15 @@
           },
           "action_id": "filters",
           "value": "-"
-        },
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "Add a source",
-            "emoji": false
-          },
-          "action_id": "manual",
-          "value": "-"
-        }
-      ]
-    },
-    {
-      "type": "context",
-      "elements": [
-        {
-          "type": "mrkdwn",
-          "text": "All sources · All assessments",
-          "verbatim": true
-        }
-      ]
-    },
-    {
-      "type": "actions",
-      "elements": [
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "Show 1 new findings",
-            "emoji": false
-          },
-          "action_id": "show_new",
-          "value": "-"
-        }
-      ]
-    },
-    {
-      "type": "context",
-      "elements": [
-        {
-          "type": "mrkdwn",
-          "text": "Last collection: Ready · 1 findings",
-          "verbatim": true
-        }
-      ]
-    },
-    {
-      "type": "actions",
-      "elements": [
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "Collection details",
-            "emoji": false
-          },
-          "action_id": "run_status",
-          "value": "45454b7d0283449fa35ebb5e524d62f4"
         }
       ]
     },
     {
       "type": "section",
       "text": {
-        "type": "plain_text",
-        "text": "Findings will appear here after collection. You can also add a source yourself.",
-        "emoji": false
+        "type": "mrkdwn",
+        "text": "*<https://example.com/fixture/repair|[Fixture] Northstar · synthetic fixture announces a repair program>*",
+        "verbatim": true
       }
     },
     {
@@ -264,8 +181,96 @@
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "0 findings",
+          "text": "example.com · 2026-09-20 · Web page",
           "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Publication date needs verification",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Inspect",
+            "emoji": false
+          },
+          "action_id": "inspect",
+          "value": "37674a6f593941f0b00f9175ae8f4d1f"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Save",
+            "emoji": false
+          },
+          "action_id": "save",
+          "value": "37674a6f593941f0b00f9175ae8f4d1f"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Showing 1–1 of 1",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Search details",
+            "emoji": false
+          },
+          "action_id": "run_status",
+          "value": "f5b197e7eb4343b9962362f0e8e20c2a"
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "About Explore",
+            "emoji": false
+          },
+          "action_id": "tab_help",
+          "value": "explore"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Settings",
+            "emoji": false
+          },
+          "action_id": "settings",
+          "value": "-"
         }
       ]
     }

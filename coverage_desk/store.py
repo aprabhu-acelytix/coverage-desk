@@ -77,6 +77,9 @@ class Store:
             raise DeskError('Choose private or workspace shared.')
         ident = uuid.uuid4().hex
         now = time.time()
+        if kind=='finding':
+            from .scope import identity,version
+            data={**data,'article_id':identity(actor.workspace,actor.user,data['url']),'version_id':version(data)}
         with self.lock:
             self.db.execute('INSERT INTO objects VALUES(?,?,?,?,?,?,?,?)', (ident,kind,actor.workspace,actor.user,visibility,json.dumps(data),now,expires or now+self.s.retention_days*86400))
         return self.get(actor,ident)
@@ -109,7 +112,7 @@ class Store:
         self.authorize(actor)
         with self.lock:
             row = self.db.execute('SELECT data FROM preferences WHERE workspace=? AND user=?',(actor.workspace,actor.user)).fetchone()
-            value = json.loads(row[0]) if row else {'tab':'explore','page':0,'filter':'all','monitor':''}
+            value = json.loads(row[0]) if row else {'tab':'explore','page':0,'filter':'relevant','history':'current','monitor':''}
             if changes:
                 value.update(changes)
                 self.db.execute('INSERT OR REPLACE INTO preferences VALUES(?,?,?)',(actor.workspace,actor.user,json.dumps(value)))
@@ -118,5 +121,60 @@ class Store:
     def purge(self):
         with self.lock:
             n = self.db.execute('DELETE FROM objects WHERE expires<=?',(time.time(),)).rowcount
+            if self.db.execute("SELECT 1 FROM sqlite_master WHERE name='article_aliases'").fetchone():
+                self.db.execute('DELETE FROM article_aliases WHERE expires<=?',(time.time(),))
             self.db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+            if self.s.database!=':memory:':
+                # Migration backups retain original expiries, never renewed rights.
+                for path in (Path(self.s.database).resolve().parent/'backups').glob('research-v1-*.sqlite3'):
+                    backup=sqlite3.connect(path)
+                    try:
+                        backup.execute('PRAGMA secure_delete=ON')
+                        backup.execute('DELETE FROM objects WHERE expires<=?',(time.time(),))
+                        backup.commit()
+                        backup.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+                    finally:backup.close()
+                # Only task-owned public validation exports; no arbitrary user files.
+                root=Path(self.s.database).resolve().parent
+                for pattern in ('research-comparison-*.json','native-research-probe.json','research-workflow-validation.json'):
+                    for path in root.glob(pattern):
+                        if path.is_file() and path.stat().st_mtime+self.s.retention_days*86400<=time.time():path.unlink()
             return n
+
+    def migrate_research(self):
+        """Idempotent metadata migration; observation and board IDs never change."""
+        from .scope import identity,version,scope_key
+        with self.lock:
+            exists=self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='migrations'").fetchone()
+            if exists and self.db.execute("SELECT 1 FROM migrations WHERE name='research-v1'").fetchone():return None
+            backup_path=None
+            if self.s.database!=':memory:':
+                folder=Path(self.s.database).resolve().parent/'backups'
+                folder.mkdir(exist_ok=True)
+                backup_path=folder/f'research-v1-{int(time.time())}.sqlite3'
+                backup=sqlite3.connect(backup_path)
+                try:self.db.backup(backup)
+                finally:backup.close()
+            with self.transaction():
+                self.db.execute('CREATE TABLE IF NOT EXISTS migrations(name TEXT PRIMARY KEY, applied REAL, backup TEXT)')
+                self.db.execute('CREATE TABLE IF NOT EXISTS article_aliases(observation_id TEXT PRIMARY KEY, article_id TEXT, expires REAL)')
+                records=self.db.execute('SELECT * FROM objects').fetchall()
+                monitors={r['id']:json.loads(r['data']) for r in records if r['kind']=='monitor'}
+                for raw in records:
+                    data=json.loads(raw['data'])
+                    if raw['kind']=='monitor':data['scope_key']=scope_key(data)
+                    elif raw['kind']=='finding':
+                        data.update(article_id=identity(raw['workspace'],raw['owner'],data['url']),version_id=version(data))
+                        monitor=monitors.get(data.get('monitor_id'))
+                        if monitor and data.get('monitor_revision')==monitor.get('revision'):
+                            data['scope_key']=scope_key(monitor)
+                        data['legacy_observation']=True
+                        self.db.execute('INSERT OR IGNORE INTO article_aliases VALUES(?,?,?)',(raw['id'],data['article_id'],raw['expires']))
+                    elif raw['kind']=='preview':data['used']=True
+                    else:continue
+                    self.db.execute('UPDATE objects SET data=? WHERE id=?',(json.dumps(data),raw['id']))
+                for row in self.db.execute('SELECT workspace,user,data FROM preferences').fetchall():
+                    p=json.loads(row['data']);p.update(filter='relevant',history='current',page=0)
+                    self.db.execute('UPDATE preferences SET data=? WHERE workspace=? AND user=?',(json.dumps(p),row['workspace'],row['user']))
+                self.db.execute('INSERT INTO migrations VALUES(?,?,?)',('research-v1',time.time(),str(backup_path) if backup_path else None))
+            return backup_path

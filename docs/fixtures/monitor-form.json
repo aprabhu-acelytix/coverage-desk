@@ -70,7 +70,7 @@
       },
       "hint": {
         "type": "plain_text",
-        "text": "Optional, one per line. Example: The company supports repairing clothing. AI checks these only when you ask.",
+        "text": "Optional, one per line. Example: The company supports repairing clothing. Research checks these against available evidence.",
         "emoji": false
       }
     },
@@ -152,7 +152,7 @@
       },
       "hint": {
         "type": "plain_text",
-        "text": "Social sites use Brave’s public web index, not a direct platform connection. Coverage may be limited.",
+        "text": "Social sources use public web search, not a direct platform connection. Coverage may be limited.",
         "emoji": false
       },
       "element": {
@@ -296,7 +296,7 @@
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "Only source collection starts on save. AI analysis and publishing are separate actions.",
+          "text": "Saving starts owner-operated research and evidence assessment. Publishing always needs a separate exact-preview confirmation.",
           "verbatim": true
         }
       ]
@@ -306,7 +306,7 @@
   "callback_id": "monitor_submit",
   "submit": {
     "type": "plain_text",
-    "text": "Save & collect",
+    "text": "Find coverage",
     "emoji": false
   }
 }

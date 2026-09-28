@@ -22,6 +22,25 @@ def digest(value):
 class Strict(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
+class PlannedQuery(Strict):
+    query: str = Field(min_length=1,max_length=550)
+    target: Literal['news','web','instagram','x','linkedin','facebook','tiktok','reddit','youtube']
+    purpose: Literal['broad','focus','contrary']
+    rationale: str = Field(max_length=300)
+
+class ResearchPlan(Strict):
+    interpretation: str = Field(max_length=500)
+    queries: list[PlannedQuery] = Field(min_length=1,max_length=3)
+
+class NativeCandidate(Strict):
+    title: str = Field(max_length=300)
+    url: str
+    quote: str = Field(max_length=500)
+
+class NativeResearch(Strict):
+    interpretation: str = Field(max_length=500)
+    candidates: list[NativeCandidate] = Field(max_length=5)
+
 class Evidence(Strict):
     source_id: str
     quote: str = Field(max_length=500)
@@ -41,6 +60,13 @@ class Classification(Strict):
 
 class Analysis(Strict):
     findings: list[Classification] = Field(max_length=15)
+
+class ResearchFinding(Classification):
+    supporting_quote: str = Field(min_length=1,max_length=500)
+
+class ResearchResult(Strict):
+    interpretation: str = Field(max_length=500)
+    findings: list[ResearchFinding] = Field(max_length=15)
 
 class BriefingPoint(Strict):
     text: str = Field(max_length=250)

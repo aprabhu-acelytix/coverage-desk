@@ -24,7 +24,7 @@
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "example.com · 2026-09-20",
+          "text": "example.com · 2026-09-20 · Web page",
           "verbatim": true
         }
       ]
@@ -97,7 +97,7 @@
       "type": "section",
       "text": {
         "type": "plain_text",
-        "text": "Published: 2026-09-20\nCollected: 28 Sep 2026, 02:16 UTC\nAvailable text: excerpt only",
+        "text": "Date: 2026-09-20\nCollected: 28 Sep 2026, 03:54 UTC\nAvailable text: excerpt only",
         "emoji": false
       }
     },
@@ -123,7 +123,7 @@
             "emoji": false
           },
           "action_id": "perspective",
-          "value": "43416d0b68cf42dabd937a506c864ab1"
+          "value": "28933e77c33d4b61b0b1d13248196f11"
         },
         {
           "type": "button",
@@ -133,10 +133,10 @@
             "emoji": false
           },
           "action_id": "review",
-          "value": "43416d0b68cf42dabd937a506c864ab1"
+          "value": "28933e77c33d4b61b0b1d13248196f11"
         }
       ]
     }
   ],
-  "private_metadata": "{\"id\": \"43416d0b68cf42dabd937a506c864ab1\", \"board\": true, \"tab\": \"source\", \"page\": 0}"
+  "private_metadata": "{\"id\": \"28933e77c33d4b61b0b1d13248196f11\", \"board\": true, \"tab\": \"source\", \"page\": 0}"
 }

@@ -45,7 +45,7 @@ Generate a dedicated, version-appropriate runtime config after checking official
 
 - Clean working directory outside the repository, with no inherited project instructions, personal memories, plugins, MCP servers, skills, or hooks. Do not import the build agent's configuration or history.
 - An allowlisted subprocess environment. Retain only variables required for the executable, OS credential access, and approved authentication/transport. Exclude Slack/search/YouTube keys and unrelated service secrets. Use safe argument arrays/stdio, never shell interpolation of source text.
-- Disable model-accessible shell/exec, code-execution alternatives, editing, browsing, connected tools, and subagent delegation through supported controls. Do not assume an empty dynamic-tools list removes built-in tools. Verify the effective configuration. [R6]
+- Disable model-accessible shell/exec, code-execution alternatives, editing, connected tools, and subagent delegation through supported controls. Do not assume an empty dynamic-tools list removes built-in tools. Verify the effective configuration. [R6]
 - No privilege escalation or auto-approved actions. Deny unexpected tool/approval requests and terminate that job safely.
 - Least-privilege filesystem/tool network access where supported. **Read-only does not mean unreadable:** the documented sandbox can have broad read access unless explicitly restricted. Do not claim an empty working directory or `approvalPolicy=never` alone prevents file reads or execution. [R2, R6]
 
@@ -74,7 +74,7 @@ Add focused tests alongside ordinary app tests:
 - Collaborators can save/comment/review/edit authorized shared artifacts without invoking AI.
 - Private configuration/output cannot leak through a shared cache, board, draft, or status message.
 
-Offline mocks establish application behavior, not live runtime isolation. After owner approval, inspect effective runtime controls and run **one tiny synthetic analysis** with no tools or external source fetching. Record actual SDK/runtime versions, auth mode, model, outcome, and validation checks without account details. Report a blocked live check honestly.
+Offline mocks establish application behavior, not live runtime isolation. Within existing owner authorization, inspect effective runtime controls and run **one tiny synthetic analysis** with no tools or external source fetching. Record actual SDK/runtime versions, auth mode, model, outcome, and validation checks without account details. Report a blocked live check honestly.
 
 ## References
 
@@ -86,3 +86,16 @@ Official documentation checked while preparing this revision on 27 September 202
 - [R4] Personal plan restrictions: `https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro`
 - [R5] Codex plan usage and data controls: `https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan`
 - [R6] Codex configuration: `https://developers.openai.com/codex/config-reference/`
+
+
+## Research redesign: two explicit operations
+
+`research` is a separate role in the same pinned SDK/App Server architecture. It enables `web_search="live"` through per-client config overrides; analysis, query planning and briefing keep `web_search="disabled"`. The inference lock is acquired before preparing shared generated configuration. Both roles keep the clean environment, dedicated runtime home, root filesystem denial, no shell/editing/MCP/plugins/images/delegation, and fresh ephemeral threads. No development-session tools or credentials are inherited.
+
+The 0.157.1 SDK exposes optional `WebSearchThreadItem.results`. The live slice returned `text_result` objects with source refs, URLs and snippets. A registry is built only from those observed results. A generated URL/quote or attempted open is not evidence. Every native assessment requires an exact supporting snippet quote; message quotes are validated independently. Completed web events are checkpointed to the parent so cancellation can preserve observed sources. Model-generated text is never used to verify itself.
+
+Native trials showed poor date control and frequent exact-evidence failures. The explicit default is therefore **AI-planned Brave**: one no-tools planning job, at most two planned provider requests (focus before broad), and one bounded no-tools assessment batch across unique current evidence. Further pending evidence has an owner continuation action. Native web remains an explicitly labeled limited option; no mid-run provider fallback occurs.
+
+Native turns reserve three durable source slots: two instructed hosted actions and one cancellation-boundary action. The guard interrupts at the third observed action; events occur after initiation and are not a hard network-request firewall. One search event can contain multiple queries and does not reveal the provider's internal requests. Reservations are not refunded. AI-planned Brave and public metadata checks charge each outbound request including redirects, before sending. Source cap is 50; AI cap remains 10.
+
+Application metadata verification applies only to provider-returned research URLs, never arbitrary manual contributions. DNS answers and every redirect must be public; connections pin the validated address and preserve TLS hostname checks. Requests have port, time, redirect and byte limits, carry no cookies or provider credentials, and do not bypass denied access. Only explicit publisher publication metadata is retained. Brave page_age can mean published or modified, so it alone never establishes publication eligibility.

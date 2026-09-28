@@ -155,14 +155,6 @@
           {
             "text": {
               "type": "plain_text",
-              "text": "All assessments",
-              "emoji": false
-            },
-            "value": "all"
-          },
-          {
-            "text": {
-              "type": "plain_text",
               "text": "Relevant",
               "emoji": false
             },
@@ -174,32 +166,68 @@
               "text": "Needs review",
               "emoji": false
             },
-            "value": "uncertain"
+            "value": "review"
           },
           {
             "text": {
               "type": "plain_text",
-              "text": "Likely a different subject",
+              "text": "All collected",
               "emoji": false
             },
-            "value": "not_relevant"
-          },
-          {
-            "text": {
-              "type": "plain_text",
-              "text": "Not analyzed yet",
-              "emoji": false
-            },
-            "value": "unassessed"
+            "value": "all"
           }
         ],
         "initial_option": {
           "text": {
             "type": "plain_text",
-            "text": "All assessments",
+            "text": "Relevant",
             "emoji": false
           },
-          "value": "all"
+          "value": "relevant"
+        }
+      }
+    },
+    {
+      "type": "input",
+      "block_id": "history",
+      "label": {
+        "type": "plain_text",
+        "text": "Scope",
+        "emoji": false
+      },
+      "element": {
+        "type": "static_select",
+        "action_id": "value",
+        "placeholder": {
+          "type": "plain_text",
+          "text": "Choose",
+          "emoji": false
+        },
+        "options": [
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Current scope",
+              "emoji": false
+            },
+            "value": "current"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Previous scope",
+              "emoji": false
+            },
+            "value": "previous"
+          }
+        ],
+        "initial_option": {
+          "text": {
+            "type": "plain_text",
+            "text": "Current scope",
+            "emoji": false
+          },
+          "value": "current"
         }
       }
     },

@@ -1,5 +1,7 @@
 # Build and validation notes
 
+**Current research redesign:** See [RESEARCH_VALIDATION.md](RESEARCH_VALIDATION.md) for the new migration, workflow, native/Brave comparison, live ledger and remaining checks. The results below are historical baseline evidence, not a claim that the new research path has those same outcomes.
+
 ## Architecture
 
 Slack Bolt / Socket Mode → authorized service operations → scoped SQLite records. Brave adapters and manual sources are separate from AI. One bounded worker performs retrieval/analysis, immediately acknowledged Slack actions update Home on completion. Native Block Kit rendering is in `coverage_desk/ui.py`. `runtime.py` launches an isolated host for the official SDK in `runtime_worker.py`.

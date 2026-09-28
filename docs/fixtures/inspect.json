@@ -24,7 +24,7 @@
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "example.com · 2026-09-20",
+          "text": "example.com · 2026-09-20 · Web page",
           "verbatim": true
         }
       ]
@@ -125,10 +125,10 @@
             "emoji": false
           },
           "action_id": "save",
-          "value": "44b0d32b6961489b80a5e356e938b5ca"
+          "value": "37674a6f593941f0b00f9175ae8f4d1f"
         }
       ]
     }
   ],
-  "private_metadata": "{\"id\": \"44b0d32b6961489b80a5e356e938b5ca\", \"board\": false, \"tab\": \"overview\", \"page\": 0}"
+  "private_metadata": "{\"id\": \"37674a6f593941f0b00f9175ae8f4d1f\", \"board\": false, \"tab\": \"overview\", \"page\": 0}"
 }

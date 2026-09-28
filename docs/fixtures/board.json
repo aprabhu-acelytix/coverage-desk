@@ -2,14 +2,6 @@
   "type": "home",
   "blocks": [
     {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": "Coverage Desk",
-        "emoji": false
-      }
-    },
-    {
       "type": "actions",
       "elements": [
         {
@@ -30,7 +22,8 @@
             "emoji": false
           },
           "action_id": "nav_board",
-          "value": "board"
+          "value": "board",
+          "style": "primary"
         },
         {
           "type": "button",
@@ -45,55 +38,11 @@
       ]
     },
     {
-      "type": "divider"
-    },
-    {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": "Team board",
-        "emoji": false
-      }
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "plain_text",
-        "text": "Save useful findings and discuss them with your team.",
-        "emoji": false
-      }
-    },
-    {
-      "type": "actions",
-      "elements": [
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "How it works",
-            "emoji": false
-          },
-          "action_id": "tab_help",
-          "value": "board"
-        },
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "Settings",
-            "emoji": false
-          },
-          "action_id": "settings",
-          "value": "-"
-        }
-      ]
-    },
-    {
       "type": "context",
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "Demo · Synthetic examples, no live retrieval or AI.",
+          "text": "Demo: synthetic evidence, no live research.",
           "verbatim": true
         }
       ]
@@ -143,12 +92,7 @@
             },
             "value": "all"
           }
-        }
-      ]
-    },
-    {
-      "type": "actions",
-      "elements": [
+        },
         {
           "type": "button",
           "text": {
@@ -175,7 +119,7 @@
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "example.com · 2026-09-20",
+          "text": "example.com · 2026-09-20 · Web page",
           "verbatim": true
         }
       ]
@@ -201,7 +145,7 @@
             "emoji": false
           },
           "action_id": "inspect_board",
-          "value": "43416d0b68cf42dabd937a506c864ab1"
+          "value": "28933e77c33d4b61b0b1d13248196f11"
         }
       ]
     },
@@ -215,6 +159,31 @@
           "type": "mrkdwn",
           "text": "Showing 1–1 of 1",
           "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "About Team board",
+            "emoji": false
+          },
+          "action_id": "tab_help",
+          "value": "board"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Settings",
+            "emoji": false
+          },
+          "action_id": "settings",
+          "value": "-"
         }
       ]
     }

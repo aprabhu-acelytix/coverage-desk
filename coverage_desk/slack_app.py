@@ -141,6 +141,14 @@ def create_app(s,store,client):
             elif kind.startswith('page_'):store.preferences(actor,{'page':max(0,int(value))})
             elif kind=='monitor_select':store.get(actor,value,'monitor');store.preferences(actor,{'monitor':value,'page':0,'snapshot':time.time(),'notice':''})
             elif kind=='board_filter':store.preferences(actor,{'board_filter':value,'page':0})
+            elif kind=='result_filter':
+                if value not in ('relevant','review','all'):raise DeskError('Unknown result view.')
+                store.preferences(actor,{'filter':value,'page':0})
+            elif kind=='search_options':
+                row=store.get(actor,value,'monitor')
+                controls=[ui.button('Add a source','manual')]
+                if actor.user==s.owner:controls.extend([ui.button('Edit search','edit_monitor',value),ui.button('New search','new_monitor')])
+                open_modal(body,ui.modal('Search options',[ui.para(row['name']),ui.para(row.get('interpretation') or row.get('campaign') or 'General coverage of this subject.'),ui.actions(*controls)]));return
             elif kind=='clear_filters':store.preferences(actor,{'filter':'all','source_filter':'all','page':0,'snapshot':time.time(),'notice':''})
             elif kind=='show_new':store.preferences(actor,{'snapshot':time.time(),'page':0,'notice':''})
             elif kind=='tab_help':open_modal(body,ui.help_modal(value));return
@@ -151,6 +159,7 @@ def create_app(s,store,client):
                 client.views_update(view_id=body['view']['id'],hash=body['view']['hash'],view=ui.monitor_modal(values,expanded=value=='show'));return
             elif kind.startswith('detail_'):
                 m=metadata(body);row=store.get(actor,m['id'],'board' if m['board'] else 'finding')
+                if not m['board']:row=desk.finding_detail(actor,row['id'])
                 tab=m['tab'] if kind.startswith('detail_page_') else value
                 page=int(value) if kind.startswith('detail_page_') else 0
                 client.views_update(view_id=body['view']['id'],hash=body['view']['hash'],view=ui.detail(row,m['board'],tab,page));return
@@ -180,18 +189,14 @@ def create_app(s,store,client):
                 open_modal(body,ui.modal('Schedule previews',blocks,'schedule_submit',submit='Confirm schedule'));return
             elif kind=='filters':open_modal(body,ui.filters_modal(p));return
             elif kind in ('inspect','inspect_board'):
-                open_modal(body,ui.detail(store.get(actor,value,'board' if kind=='inspect_board' else 'finding'),kind=='inspect_board'));return
+                open_modal(body,ui.detail(store.get(actor,value,'board') if kind=='inspect_board' else desk.finding_detail(actor,value),kind=='inspect_board'));return
             elif kind=='run_status':open_modal(body,ui.collection_modal(store.get(actor,value,'run')));return
             elif kind=='refresh':
                 store.get(actor,value,'monitor')
                 store.preferences(actor,{'notice':''})
-                desk.submit(actor,'Collecting coverage',lambda cancel:desk.refresh(actor,value,cancel),True,key=actor.user+':'+a.get('action_ts',body['trigger_id']))
-            elif kind=='analyze_page':
-                store.authorize(actor,owner=True)
-                if value!=p['monitor']:raise DeskError('The selected search changed. Reopen Explore before analyzing.')
-                selected=finding_selection(store,actor,p)['visible']
-                ids=[r['id'] for r in selected if r.get('monitor_id')==value]
-                desk.submit(actor,'Analyzing selected evidence',lambda cancel:desk.analyze(actor,value,ids,cancel),True,key=actor.user+':'+a.get('action_ts',body['trigger_id']))
+                desk.submit(actor,'Researching coverage',lambda cancel:desk.research(actor,value,cancel),True,key=actor.user+':'+a.get('action_ts',body['trigger_id']))
+            elif kind=='continue_research':
+                desk.submit(actor,'Assessing pending evidence',lambda cancel:desk.continue_research(actor,value,cancel),True,key=actor.user+':'+a.get('action_ts',body['trigger_id']))
             elif kind=='manual':
                 open_modal(body,ui.modal('Add a source',[ui.context('User-submitted evidence. The app does not fetch this URL.'),ui.input_text('url','Source URL',max_length=1500),ui.input_text('title','Title'),ui.input_text('text','Available excerpt','',True,True,3000),ui.input_text('comment','Your private comment','',True,True,2000)],'manual_submit',{'monitor_id':p['monitor']}));return
             elif kind=='save':
@@ -212,7 +217,7 @@ def create_app(s,store,client):
             elif kind=='draft_detail':open_modal(body,ui.modal('Briefing snapshot',ui.briefing_blocks(store.get(actor,value,'briefing'))));return
             elif kind=='edit_draft':
                 d=store.get(actor,value,'briefing')
-                open_modal(body,ui.modal('Edit briefing',[ui.input_text('text','Draft text',d['text'],False,True,2800),ui.context('Source links remain attached. Editing never invokes AI.')],'edit_draft_submit',{'id':value,'revision':d['revision']}));return
+                open_modal(body,ui.modal('Edit briefing',[ui.input_text('title','Title',d['title'],max_length=150),ui.input_text('text','Draft text',d['text'],False,True,2800),ui.context('Source links remain attached. Editing never invokes AI.')],'edit_draft_submit',{'id':value,'revision':d['revision']}));return
             elif kind=='preview':
                 p=desk.preview(actor,value);d=store.get(actor,value,'briefing')
                 open_modal(body,ui.modal('Confirm exact preview',[ui.para('Destination: '+s.channel+' · Public demo channel. Confirming sends the exact blocks below.'),*ui.briefing_blocks(d)],'publish_submit',{'id':p['id']},submit='Publish'));return
@@ -241,12 +246,10 @@ def create_app(s,store,client):
                 return
             if kind=='monitor_submit':
                 row=desk.monitor(actor,v,m.get('id'))
-                notice='Search updated. Collect coverage when ready.' if m.get('id') else 'Search saved. Collection is starting; AI analysis stays optional.'
-                store.preferences(actor,{'monitor':row['id'],'tab':'explore','filter':'all','source_filter':'all','page':0,'snapshot':time.time(),'notice':notice,'awaiting_first_collection':row['id'] if not m.get('id') else ''})
-                if not m.get('id'):
-                    try:desk.submit(actor,'Collecting coverage',lambda cancel:desk.refresh(actor,row['id'],cancel),True,key='new-search:'+body['view']['id']+':'+body['view'].get('hash',''))
-                    except DeskError as exc:store.preferences(actor,{'notice':'Search saved, but collection has not started. '+str(exc)+' Use Collect coverage when ready.'})
-            elif kind=='filters_submit':store.preferences(actor,{'filter':v['filter'],'source_filter':v.get('source_filter','all'),'page':0,'notice':''})
+                store.preferences(actor,{'monitor':row['id'],'tab':'explore','filter':'relevant','history':'current','source_filter':'all','page':0,'snapshot':time.time(),'notice':''})
+                try:desk.submit(actor,'Researching coverage',lambda cancel:desk.research(actor,row['id'],cancel),True,key='search:'+body['view']['id']+':'+body['view'].get('hash',''))
+                except DeskError as exc:store.preferences(actor,{'notice':'Search saved. '+str(exc)+' Use Refresh when ready.'})
+            elif kind=='filters_submit':store.preferences(actor,{'filter':v['filter'],'source_filter':v.get('source_filter','all'),'history':v.get('history','current'),'page':0,'notice':''})
             elif kind=='manual_submit':
                 v={k:(x or '') for k,x in v.items()};v['monitor_id']=m.get('monitor_id','')
                 desk.manual(actor,v);store.preferences(actor,{'snapshot':time.time(),'notice':'Source added. Its excerpt is labeled user-supplied.'})
@@ -260,7 +263,7 @@ def create_app(s,store,client):
             elif kind=='briefing_submit':
                 desk.submit(actor,'Creating briefing',lambda cancel:desk.draft(actor,v['ids'],cancel,use_ai=v.get('ai')=='yes'),True,key='draft:'+body['view']['id']+':'+body['view']['hash'])
                 store.preferences(actor,{'tab':'briefings','page':0,'notice':'Draft requested. Review, edit, and preview before publishing.'})
-            elif kind=='edit_draft_submit':desk.edit_draft(actor,m['id'],v['text'],m['revision'])
+            elif kind=='edit_draft_submit':desk.edit_draft(actor,m['id'],v['text'],m['revision'],v.get('title'))
             elif kind=='publish_submit':
                 desk.submit(actor,'Publishing confirmed preview',lambda cancel:desk.publish(actor,m['id'],client),True,key='publish:'+m['id'])
             elif kind=='schedule_submit':
@@ -280,6 +283,7 @@ def run(s,store):
     except OSError:raise DeskError('Coverage Desk is already running (local single-instance port 47831).') from None
     client,_=bind(s)
     store.s.workspace=s.workspace
+    store.migrate_research()
     store.purge()
     app,desk,publish=create_app(s,store,client)
     owner_actor=Actor(s.workspace,s.owner)

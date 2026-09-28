@@ -1,4 +1,4 @@
-﻿"""Offline regression checks for the redesigned user journeys."""
+"""Offline regression checks for the redesigned user journeys."""
 import json
 import threading
 import time
@@ -59,9 +59,10 @@ def test_create_collect_once_and_show_results(app_env):
     app,d,st,c,o=app_env
     view=form_view({'name':'Acme','campaign':'','messages':'Repair products','freshness':'pw','sources':DEFAULT_SOURCES})
     assert submit(app,view).status==200
-    await_true(lambda:len(st.list(o,'run'))==1 and d.jobs.get(o.user,{}).get('state')=='Ready')
+    await_true(lambda:len(st.list(o,'run'))==1 and d.jobs.get(o.user,{}).get('state')=='Assessed')
     assert st.list(o,'monitor')[0]['sources']==DEFAULT_SOURCES
-    assert len(finding_selection(st,o,st.preferences(o))['visible'])==1
+    assert len(finding_selection(st,o,{**st.preferences(o),'filter':'review'})['visible'])==1
+    assert st.list(o,'finding')[0]['analysis']
     submit(app,view)
     assert len(st.list(o,'monitor'))==1
     assert st.budgets()['ai']['used']==st.budgets()['source']['used']==0
@@ -100,14 +101,14 @@ def test_expand_collapse_preserves_advanced_fields_and_existing_sources(app_env)
     await_true(lambda:st.get(o,m['id'])['name']=='Acme changed')
     assert st.get(o,m['id'])['notes']=='Updated note'
     assert st.get(o,m['id'])['sources']==['news']
-    assert not st.list(o,'run')
+    await_true(lambda:len(st.list(o,'run'))==1)
 
 
 def test_saved_search_survives_busy_worker(app_env):
     app,d,st,c,o=app_env
     d.jobs[o.user]={'state':'Working','label':'Existing work','cancel':threading.Event()}
     submit(app,form_view({'name':'Acme','sources':['news']}))
-    await_true(lambda:'collection has not started' in st.preferences(o).get('notice',''))
+    await_true(lambda:'Use Refresh when ready' in st.preferences(o).get('notice',''))
     assert len(st.list(o,'monitor'))==1 and not st.list(o,'run')
 
 
@@ -120,16 +121,16 @@ def test_platform_classification(url,expected):
     assert platform(url)==expected
 
 
-def test_analyze_matches_filtered_visible_page_without_fetch(app_env):
+def test_continue_assesses_run_not_filtered_visible_page(app_env):
     app,d,st,c,o=app_env;m=d.monitor(o,{'name':'Acme'});d.analyze=Mock()
     for i in range(13):
         r=record(str(i),'https://www.linkedin.com/posts/'+str(i),'Acme','Brave web',{})
-        r['monitor_id']=m['id'];r['analysis']={'relevance':'relevant' if i%2 else 'uncertain'}
+        r.update(monitor_id=m['id'],monitor_revision=m['revision'],scope_key=m['scope_key'])
         st.create(o,'finding',r)
+    d.s.storage_allowed=True
     st.preferences(o,{'monitor':m['id'],'source_filter':'linkedin','filter':'relevant','page':1,'snapshot':time.time()})
-    expected=[r['id'] for r in finding_selection(st,o,st.preferences(o))['visible']]
-    action(app,'analyze_page',m['id']);await_true(lambda:d.analyze.called)
-    assert d.analyze.call_args.args[2]==expected and len(expected)==1
+    action(app,'continue_research',m['id']);await_true(lambda:d.analyze.called)
+    assert len(d.analyze.call_args.args[2])==13
     assert st.budgets()['source']['used']==0
 
 
@@ -221,7 +222,7 @@ def test_progress_does_not_move_existing_page_and_is_persisted(app_env):
     assert p['snapshot']==1 and p['page']==2 and p['tab']=='board'
     job=st.list(o,'job')[0]
     assert job['retained']==1 and job['run_id'] and job['state']=='Ready'
-    assert finding_selection(st,o,p)['new']==1
+    assert finding_selection(st,o,{**p,'filter':'all'})['new']==1
 
 
 def test_all_new_views_obey_slack_limits(app_env):

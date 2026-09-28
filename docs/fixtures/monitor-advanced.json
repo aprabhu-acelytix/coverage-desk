@@ -70,7 +70,7 @@
       },
       "hint": {
         "type": "plain_text",
-        "text": "Optional, one per line. Example: The company supports repairing clothing. AI checks these only when you ask.",
+        "text": "Optional, one per line. Example: The company supports repairing clothing. Research checks these against available evidence.",
         "emoji": false
       }
     },
@@ -152,7 +152,7 @@
       },
       "hint": {
         "type": "plain_text",
-        "text": "Social sites use Brave’s public web index, not a direct platform connection. Coverage may be limited.",
+        "text": "Social sources use public web search, not a direct platform connection. Coverage may be limited.",
         "emoji": false
       },
       "element": {
@@ -293,6 +293,50 @@
     },
     {
       "type": "input",
+      "block_id": "research_path",
+      "label": {
+        "type": "plain_text",
+        "text": "Research path",
+        "emoji": false
+      },
+      "element": {
+        "type": "static_select",
+        "action_id": "value",
+        "placeholder": {
+          "type": "plain_text",
+          "text": "Choose",
+          "emoji": false
+        },
+        "options": [
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "AI-planned Brave (recommended)",
+              "emoji": false
+            },
+            "value": "AI-planned Brave"
+          },
+          {
+            "text": {
+              "type": "plain_text",
+              "text": "Codex native web (limited evidence)",
+              "emoji": false
+            },
+            "value": "Codex native web"
+          }
+        ],
+        "initial_option": {
+          "text": {
+            "type": "plain_text",
+            "text": "AI-planned Brave (recommended)",
+            "emoji": false
+          },
+          "value": "AI-planned Brave"
+        }
+      }
+    },
+    {
+      "type": "input",
       "block_id": "aliases",
       "label": {
         "type": "plain_text",
@@ -335,10 +379,31 @@
     },
     {
       "type": "input",
+      "block_id": "interpretation",
+      "label": {
+        "type": "plain_text",
+        "text": "What should this search include?",
+        "emoji": false
+      },
+      "optional": true,
+      "element": {
+        "type": "plain_text_input",
+        "action_id": "value",
+        "multiline": true,
+        "max_length": 500
+      },
+      "hint": {
+        "type": "plain_text",
+        "text": "Optional editorial scope. Leave blank for general coverage of the subject.",
+        "emoji": false
+      }
+    },
+    {
+      "type": "input",
       "block_id": "notes",
       "label": {
         "type": "plain_text",
-        "text": "Help identify the right company",
+        "text": "Help identify the right subject",
         "emoji": false
       },
       "optional": true,
@@ -500,7 +565,7 @@
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "Only source collection starts on save. AI analysis and publishing are separate actions.",
+          "text": "Saving starts owner-operated research and evidence assessment. Publishing always needs a separate exact-preview confirmation.",
           "verbatim": true
         }
       ]
@@ -510,7 +575,7 @@
   "callback_id": "monitor_submit",
   "submit": {
     "type": "plain_text",
-    "text": "Save & collect",
+    "text": "Find coverage",
     "emoji": false
   }
 }

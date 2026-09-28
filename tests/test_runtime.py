@@ -102,3 +102,18 @@ def test_inference_lock_excludes_other_process_hosts(tmp_path):
         with pytest.raises(RuntimeError,match='Another AI job'):acquire_inference_lock(tmp_path)
     finally:first.close()
     second=acquire_inference_lock(tmp_path);second.close()
+
+
+@pytest.mark.parametrize('kind',['commandExecution','fileChange','mcpToolCall','dynamicToolCall','imageView','collabAgentToolCall'])
+def test_research_still_rejects_unrelated_tools(kind):
+    from coverage_desk.runtime_worker import validate_item
+    with pytest.raises(RuntimeError):validate_item({'type':kind},research=True)
+
+
+def test_only_research_accepts_observed_web_actions():
+    from coverage_desk.runtime_worker import validate_item
+    item={'type':'webSearch','id':'one','action':{'type':'openPage','url':'https://example.org/story'}}
+    validate_item(item,research=True)
+    with pytest.raises(RuntimeError):validate_item(item,research=False)
+    for url in ('file:///C:/secrets','http://127.0.0.1/x','http://169.254.169.254/x','http://localhost/x'):
+        with pytest.raises(RuntimeError):validate_item({**item,'action':{'type':'openPage','url':url}},research=True)

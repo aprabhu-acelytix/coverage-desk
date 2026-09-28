@@ -38,26 +38,41 @@ class CodexAnalyzer:
             proc.stdin.close()
             proc.stdin = None
             deadline=time.monotonic()+self.s.timeout
+            interrupted=None
             while True:
                 if cancel and cancel.is_set():
                     proc.terminate()
-                    raise DeskError('Cancelled; remote completion may be uncertain. No automatic retry.')
+                    if operation!='research':raise DeskError('Cancelled; remote completion may be uncertain. No automatic retry.')
+                    interrupted='Cancelled; observed evidence retained. No automatic retry.'
+                    output,_=proc.communicate(timeout=5)
+                    break
                 if time.monotonic()>deadline:
                     proc.terminate()
-                    raise DeskError('AI timeout; remote completion may be uncertain. No automatic retry.')
+                    if operation!='research':raise DeskError('AI timeout; remote completion may be uncertain. No automatic retry.')
+                    interrupted='AI timeout; observed evidence retained. No automatic retry.'
+                    output,_=proc.communicate(timeout=5)
+                    break
                 try:
                     output,_=proc.communicate(timeout=0.2)
                     break
                 except subprocess.TimeoutExpired:
                     continue
-            if len(output)>self.s.output_job+2000:
+            if len(output)>(1000000 if operation=='research' else self.s.output_job+2000):
                 raise DeskError('AI output exceeded the application limit.')
             try:
-                result=json.loads(output)
+                result=json.loads(output.strip().splitlines()[-1] if operation=='research' else output)
             except (ValueError,TypeError):
                 raise DeskError('Runtime unavailable. Run the local runtime status helper.') from None
             if 'error' in result:
+                if operation=='research':
+                    for line in reversed(output.strip().splitlines()[:-1]):
+                        try:checkpoint=json.loads(line)
+                        except ValueError:continue
+                        if checkpoint.get('observed'):
+                            checkpoint.update(interrupted=result['error'],limited=True)
+                            return checkpoint
                 raise DeskError(result['error'])
+            if interrupted:result.update(interrupted=interrupted,limited=True)
             return result
         finally:
             if os.name!='nt':
@@ -100,3 +115,49 @@ class CodexAnalyzer:
             raise DeskError('Sign-in needed. Run the local runtime-login helper.')
         self.store.consume('ai')
         return validate_briefing(self.call('analyze',payload,cancel),sources)
+
+
+    def native_probe(self,criteria,cancel):
+        require_live(self.s)
+        if self.status()['state']!='Ready':raise DeskError('Sign-in needed before the research check.')
+        # Conservative reservation: hosted actions are observed after initiation,
+        # so reserve a third action for cancellation at the boundary. Never refund.
+        with self.store.transaction():
+            row=self.store.db.execute("SELECT used,cap FROM budgets WHERE kind='source'").fetchone()
+            if row['cap']-row['used']<3:raise DeskError('The research probe needs three remaining source-action slots.')
+            self.store.db.execute("UPDATE budgets SET used=used+3 WHERE kind='source'")
+        self.store.consume('ai')
+        from .models import NativeResearch
+        return self.call('research',{'criteria':criteria,'schema':NativeResearch.model_json_schema()},cancel)
+
+    def research(self,scope,cancel):
+        require_live(self.s)
+        if cancel.is_set():raise DeskError('Cancelled before research.')
+        if self.status()['state']!='Ready':raise DeskError('Sign-in needed before research.')
+        from .models import ResearchResult
+        # Atomic, durable reservation, including one boundary action. No retries
+        # or refunds: hosted tools are observable, not a client HTTP transport.
+        with self.store.transaction():
+            for kind,amount in (('source',3),('ai',1)):
+                row=self.store.db.execute('SELECT used,cap FROM budgets WHERE kind=?',(kind,)).fetchone()
+                if row['cap']-row['used']<amount:
+                    raise DeskError('Usage limit: research needs 3 source slots and 1 AI job. Existing findings remain available.')
+            self.store.db.execute("UPDATE budgets SET used=used+3 WHERE kind='source'")
+            self.store.db.execute("UPDATE budgets SET used=used+1 WHERE kind='ai'")
+        return self.call('research',{'operation':'coverage','scope':scope,'max_findings':self.s.ai_items,
+            'schema':ResearchResult.model_json_schema()},cancel)
+
+    def plan(self,monitor,cancel,max_queries=3):
+        require_live(self.s)
+        from .models import ResearchPlan
+        if self.status()['state']!='Ready':raise DeskError('Sign-in needed before research.')
+        # Desired-message wording belongs to assessment. Supplying it as search
+        # intent biased a live general-brand trial toward repair-only coverage.
+        criteria={k:monitor.get(k) for k in ('name','aliases','domains','notes','campaign','sources','language','country','freshness','interpretation')}
+        self.store.consume('ai')
+        result=self.call('analyze',{'operation':'plan','criteria':criteria,'max_queries':max_queries,'schema':ResearchPlan.model_json_schema()},cancel)
+        try:plan=ResearchPlan.model_validate(result).model_dump()
+        except ValueError:raise DeskError('Research plan did not match the required schema.') from None
+        if len(plan['queries'])>max_queries or any(q['target'] not in monitor['sources'] for q in plan['queries']):
+            raise DeskError('Research plan exceeded the authorized search scope.')
+        return plan

@@ -8,6 +8,8 @@ from .models import safe_url, canonical_url, digest
 from .discovery import PLATFORMS, platform, source_label
 
 def queries(monitor):
+    if monitor.get('_planned_query'):
+        return [(monitor.get('_planned_purpose','planned'),monitor['_planned_query'])]
     names = [monitor['name'], *monitor.get('aliases',[])][:5]
     general = ' OR '.join('"'+n.replace('"','')+'"' for n in names)
     result = [('client',general)]
@@ -20,10 +22,18 @@ def clean(value):
 
 def record(title, url, text, provider, provenance, published=None, access=None):
     safe_url(url)
-    return {'title':clean(title)[:300], 'url':url, 'canonical':canonical_url(url), 'text':clean(text)[:8000],
-        'provider':provider,'platform':platform(url),'provenance':provenance,'published':published,'retrieved':time.time(),
+    return {'title':clean(title)[:300], 'full_title':clean(title), 'url':url, 'canonical':canonical_url(url), 'text':clean(text)[:8000],
+        'provider':provider,'platform':platform(url),'source_kind':source_kind(url,provider),'provenance':provenance,'published':published,'retrieved':time.time(),
         'access':access or ('excerpt only' if text else 'metadata only'), 'hash':digest(clean(text)[:8000]),
         'analysis':None, 'analysis_status':'Unassessed'}
+
+def source_kind(url,provider):
+    from urllib.parse import urlsplit
+    if platform(url):return 'Public social page'
+    p=urlsplit(url)
+    if any(part in p.path.lower() for part in ('/products/','/collections/','/shop/')):return 'Product / catalog page'
+    if p.hostname in ('en.wikipedia.org','www.zoominfo.com'):return 'Reference / profile'
+    return 'News search result' if provider=='Brave news' else 'Web page'
 
 class Brave:
     def __init__(self,s,store,client=None):

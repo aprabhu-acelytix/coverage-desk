@@ -31,7 +31,7 @@
       "type": "section",
       "text": {
         "type": "plain_text",
-        "text": "Choose or create a coverage search. Collect sources, open a finding to inspect the available evidence, then save useful findings to your board. AI analysis is optional and only the owner can start it. Filters change your view, never the stored findings.",
+        "text": "Choose or create a coverage search. Refresh once to search and assess evidence. Inspect a finding, then save it to your board. Only the owner can start research. Filters change your view, never the stored findings.",
         "emoji": false
       }
     }

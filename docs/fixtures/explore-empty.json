@@ -2,14 +2,6 @@
   "type": "home",
   "blocks": [
     {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": "Coverage Desk",
-        "emoji": false
-      }
-    },
-    {
       "type": "actions",
       "elements": [
         {
@@ -20,7 +12,8 @@
             "emoji": false
           },
           "action_id": "nav_explore",
-          "value": "explore"
+          "value": "explore",
+          "style": "primary"
         },
         {
           "type": "button",
@@ -45,21 +38,20 @@
       ]
     },
     {
-      "type": "divider"
-    },
-    {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": "Explore",
-        "emoji": false
-      }
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Demo: synthetic evidence, no live research.",
+          "verbatim": true
+        }
+      ]
     },
     {
       "type": "section",
       "text": {
         "type": "plain_text",
-        "text": "Find coverage and check what it says.",
+        "text": "Find and assess public coverage, then save useful findings for your team.",
         "emoji": false
       }
     },
@@ -70,7 +62,33 @@
           "type": "button",
           "text": {
             "type": "plain_text",
-            "text": "How it works",
+            "text": "Find coverage",
+            "emoji": false
+          },
+          "action_id": "new_monitor",
+          "value": "-",
+          "style": "primary"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "0 findings",
+          "verbatim": true
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "About Explore",
             "emoji": false
           },
           "action_id": "tab_help",
@@ -85,93 +103,6 @@
           },
           "action_id": "settings",
           "value": "-"
-        }
-      ]
-    },
-    {
-      "type": "context",
-      "elements": [
-        {
-          "type": "mrkdwn",
-          "text": "Demo · Synthetic examples, no live retrieval or AI.",
-          "verbatim": true
-        }
-      ]
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "plain_text",
-        "text": "Start with a company, brand, or person. Add campaign messages only if you want to check for them.",
-        "emoji": false
-      }
-    },
-    {
-      "type": "actions",
-      "elements": [
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "New coverage search",
-            "emoji": false
-          },
-          "action_id": "new_monitor",
-          "value": "-",
-          "style": "primary"
-        }
-      ]
-    },
-    {
-      "type": "actions",
-      "elements": [
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "Filters",
-            "emoji": false
-          },
-          "action_id": "filters",
-          "value": "-"
-        },
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "Add a source",
-            "emoji": false
-          },
-          "action_id": "manual",
-          "value": "-"
-        }
-      ]
-    },
-    {
-      "type": "context",
-      "elements": [
-        {
-          "type": "mrkdwn",
-          "text": "All sources · All assessments",
-          "verbatim": true
-        }
-      ]
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "plain_text",
-        "text": "Findings will appear here after collection. You can also add a source yourself.",
-        "emoji": false
-      }
-    },
-    {
-      "type": "context",
-      "elements": [
-        {
-          "type": "mrkdwn",
-          "text": "0 findings",
-          "verbatim": true
         }
       ]
     }

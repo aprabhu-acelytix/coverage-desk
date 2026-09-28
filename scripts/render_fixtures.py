@@ -23,6 +23,7 @@ desk.refresh(actor,monitor['id'],threading.Event())
 st.preferences(actor,{'monitor':monitor['id']})
 finding=st.list(actor,'finding')[0]
 desk.analyze(actor,monitor['id'],[finding['id']],threading.Event())
+st.preferences(actor,{'filter':'review'})
 save('explore',ui.home(desk,actor))
 save('inspect',ui.detail(st.get(actor,finding['id'])))
 board=desk.save(actor,finding['id'],'shared',True,True)
@@ -38,6 +39,7 @@ save('settings',ui.settings_modal(desk,actor))
 st.preferences(actor,{'tab':'explore'})
 desk.jobs[actor.user]={'label':'Fixture work','state':'Working'}
 save('loading',ui.home(desk,actor))
+desk.jobs[actor.user]['error']='Usage limit: fixture state; no live request.'
 desk.jobs[actor.user]['state']='Usage limit — fixture state; no live request.'
 save('error',ui.home(desk,actor))
 save('monitor-advanced',ui.monitor_modal(expanded=True))
