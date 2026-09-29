@@ -153,6 +153,10 @@ def coverage_overview(store,actor,monitor,preferences=None,at=None):
     if category not in (*CONTENT_TYPES,'all'):category='reporting'
     rows=projected['rows'];filtered=[r for r in rows if category=='all' or r['content_type']==category]
     confirmed=[r for r in filtered if r['coverage_state']=='confirmed']
+    relevant=[r for r in rows if r['relevance']=='relevant' and r['date_status']!='outside']
+    reconciliation={'relevant':len(relevant),'counted':len(confirmed),
+        'date_unconfirmed':sum(r['date_status']!='confirmed' for r in relevant),
+        'other_type':sum(r['date_status']=='confirmed' and category!='all' and r['content_type']!=category for r in relevant)}
     outlets={}
     for row in confirmed:
         entry=outlets.setdefault(row['outlet_id'],{'id':row['outlet_id'],'key':row['outlet_key'],'name':row['outlet_name'],'articles':[],'count':0})
@@ -165,6 +169,7 @@ def coverage_overview(store,actor,monitor,preferences=None,at=None):
         'Counts are unique article appearances per outlet. Syndicated copies at different outlets are not independent stories.']
     if partial:caveats.append('Partial collection: unassessed, unverified or unfinished evidence is excluded from confirmed totals.')
     return {**projected,'category':category,'articles':confirmed,'outlets':ordered,'article_count':len(confirmed),'outlet_count':len(ordered),
+        'reconciliation':reconciliation,
         'states':states,'category_counts':dict(Counter(r['content_type'] for r in rows if r['coverage_state']=='confirmed')),
         'partial':partial,'caveats':caveats,'freshness':run.get('checked') if run else None}
 
