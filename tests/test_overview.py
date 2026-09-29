@@ -83,10 +83,11 @@ def test_new_negative_assessment_overrides_old_positive(env):
 def test_date_window_is_rechecked_and_retrieval_date_never_used(env):
     d,st,o,m=env;r=article(st,o,m,date=None)
     assert overview(env)['article_count']==0
-    d.correct_coverage(o,r['id'],{'date_action':'set','published':'2026-09-10T12:00:00Z','reason':'Owner reviewed explicit publisher metadata'})
-    data=coverage_overview(st,o,m,at=datetime(2026,9,28,tzinfo=timezone.utc).timestamp()+86400)
+    now=datetime.now(timezone.utc)
+    d.correct_coverage(o,r['id'],{'date_action':'set','published':(now-timedelta(days=2)).isoformat(),'reason':'Owner reviewed explicit publisher metadata'})
+    data=coverage_overview(st,o,m,at=now.timestamp()+1)
     assert data['article_count']==1
-    later=coverage_overview(st,o,m,at=datetime(2026,11,1,tzinfo=timezone.utc).timestamp())
+    later=coverage_overview(st,o,m,at=(now+timedelta(days=45)).timestamp())
     assert later['article_count']==0 and later['states']['outside']==1
 
 def test_scope_edits_do_not_reuse_incompatible_coverage(env):

@@ -55,13 +55,37 @@ class Desk:
             return self.store.update(actor,ident,data,owner_only=True)
         return self.store.create(actor,'monitor',data,expires=time.time()+10*365*86400)
 
+    def set_outlet_priority(self,actor,source_id,priority,reason):
+        from .outlets import PRIORITIES
+        from .overview import host
+        self.store.authorize(actor,owner=True)
+        source=self.store.get(actor,source_id,'finding');self.allowed_source(source)
+        reason=(reason or '').strip()
+        if priority not in (*PRIORITIES,'default'):raise DeskError('Choose an outlet priority.')
+        if not reason or len(reason)>500:raise DeskError('Add a short reason (up to 500 characters).')
+        return self.store.create(actor,'outlet_priority',{'host':host(source['url']),'priority':priority,'reason':reason},
+            expires=source['expires'])
+
+    def mark_relevant(self,actor,source_id):
+        self.store.authorize(actor,owner=True)
+        current=self.finding_detail(actor,source_id);self.allowed_source(current)
+        if not current.get('can_review'):raise DeskError('Mark findings in the current search scope.')
+        if current.get('correction_audit',{}).get('changes',{}).get('relevance')!='relevant':
+            self.correct_coverage(actor,source_id,{'relevance':'relevant','reason':'Owner marked this finding relevant in Slack.'})
+        row=self.finding_detail(actor,source_id)
+        notice='Marked relevant. Available in the Relevant view.'
+        if row.get('date_status')=='unconfirmed':notice+=' Publication date is still unverified; it remains outside dated totals.'
+        elif row.get('date_status')=='outside':notice+=' Its verified date is outside this period, so it remains outside current results.'
+        self.store.preferences(actor,{'snapshot':time.time(),'page':0,'notice':notice})
+        return row
+
     def correct_coverage(self,actor,source_id,values):
         from .overview import CONTENT_TYPES,host
         from datetime import datetime
         self.store.authorize(actor,owner=True)
         source=self.store.get(actor,source_id,'finding');self.allowed_source(source)
         monitor=self.store.get(actor,source['monitor_id'],'monitor')
-        if source.get('scope_key')!=scope_key(monitor):raise DeskError('Correct evidence in the current search scope.')
+        if source.get('scope_key')!=scope_key(monitor) or source.get('monitor_revision')!=monitor['revision']:raise DeskError('Edit findings in the current search scope.')
         reason=(values.get('reason') or '').strip()
         if not reason or len(reason)>1000:raise DeskError('Explain the correction and its supporting evidence (up to 1,000 characters).')
         changes={}
@@ -587,9 +611,10 @@ class Desk:
         if row.get('monitor_id'):
             from .overview import project_articles
             monitor=self.store.get(actor,row['monitor_id'],'monitor')
-            match=next((r for r in project_articles(self.store,actor,monitor)['rows'] if r['id']==ident),None)
+            row['can_review']=actor.user==self.s.owner and row.get('scope_key')==scope_key(monitor) and row.get('monitor_revision')==monitor['revision']
+            match=next((r for r in project_articles(self.store,actor,monitor)['rows'] if any(o['id']==ident for o in r['observations'])),None)
             if match:
-                for key in ('published','date_kind','date_precision','relevance','projection_expires','content_type','outlet_name','outlet_evidence','classification_evidence','correction_audit','coverage_state','assessment_status','date_status','redistribution'):
+                for key in ('published','date_kind','date_precision','relevance','projection_expires','content_type','outlet_name','outlet_context','outlet_evidence','classification_evidence','correction_audit','coverage_state','assessment_status','date_status','redistribution'):
                     if key in match:row[key]=match[key]
         return row
 

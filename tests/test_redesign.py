@@ -160,6 +160,11 @@ def test_modal_switches_in_place_and_provenance_is_readable(app_env):
     view=ui.detail(r);view.update(id='DETAIL',hash='HASH')
     action(app,'detail_source','source',view);await_true(lambda:c.views_update.called)
     updated=c.views_update.call_args.kwargs['view']
+    assert 'About this outlet' in json.dumps(updated)
+    updated.update(id='DETAIL',hash='HASH')
+    c.views_update.reset_mock()
+    action(app,'detail_page_next','1',updated);await_true(lambda:c.views_update.called)
+    updated=c.views_update.call_args.kwargs['view']
     text=' '.join(b.get('text',{}).get('text','') for b in updated['blocks'])
     assert 'Search terms: "Acme"' in text and 'Past month' in text
     assert 'Provenance:' not in text and '"endpoint"' not in text

@@ -94,6 +94,13 @@ def create_app(s,store,client):
             else:data[k]=e.get('selected_date') or e.get('value') or ''
         return data
     def metadata(body):return json.loads(body['view'].get('private_metadata') or '{}')
+    def inspect_parent(body):
+        if body['view'].get('type')!='modal':return None
+        m=metadata(body)
+        return {'id':body['view']['id'],'tab':m.get('tab','overview'),'page':m.get('page',0)}
+    def refresh_inspect(actor,m):
+        parent=m.get('parent')
+        if parent:client.views_update(view_id=parent['id'],view=ui.detail(desk.finding_detail(actor,m['id']),False,parent.get('tab','overview'),parent.get('page',0)))
     def monitor_values(actor, body):
         meta=metadata(body)
         base=store.get(actor,meta['id'],'monitor') if meta.get('id') else {'sources':DEFAULT_SOURCES,'freshness':'pw','language':'en','country':'US'}
@@ -169,14 +176,23 @@ def create_app(s,store,client):
                 from .overview import STATES
                 if value not in (*STATES,'all','attention'):raise DeskError('Unknown evidence state.')
                 store.preferences(actor,{'explore_view':'articles','content_type':'all','coverage_state':value,'history':'current','source_filter':'all','outlet':'','page':0})
+            elif kind=='mark_relevant':
+                row=desk.mark_relevant(actor,value)
+                if body['view'].get('type')=='modal':
+                    m=metadata(body)
+                    client.views_update(view_id=body['view']['id'],hash=body['view'].get('hash'),view=ui.detail(row,False,m.get('tab','overview'),m.get('page',0)))
+            elif kind=='outlet_priority':
+                from .overview_ui import outlet_priority_modal
+                store.authorize(actor,owner=True)
+                open_modal(body,outlet_priority_modal(desk.finding_detail(actor,value),inspect_parent(body)));return
             elif kind=='coverage_correct_field':
                 from .overview_ui import correction_modal
                 store.authorize(actor,owner=True)
-                client.views_update(view_id=body['view']['id'],hash=body['view'].get('hash'),view=correction_modal(desk.finding_detail(actor,metadata(body)['id']),value,form_values(body).get('reason','')));return
+                client.views_update(view_id=body['view']['id'],hash=body['view'].get('hash'),view=correction_modal(desk.finding_detail(actor,metadata(body)['id']),value,form_values(body).get('reason',''),metadata(body).get('parent')));return
             elif kind=='coverage_correct':
                 from .overview_ui import correction_modal
                 store.authorize(actor,owner=True)
-                open_modal(body,correction_modal(desk.finding_detail(actor,value)));return
+                open_modal(body,correction_modal(desk.finding_detail(actor,value),parent=inspect_parent(body)));return
             elif kind=='overview_share':
                 from .overview import coverage_overview,CONTENT_TYPES
                 from .overview_ui import period
@@ -352,6 +368,12 @@ def create_app(s,store,client):
             elif kind=='coverage_correct_submit':
                 if m.get('field')=='published':v['date_action']='set_day' if v.get('published') else 'unknown'
                 desk.correct_coverage(actor,m['id'],v)
+                store.preferences(actor,{'snapshot':time.time(),'page':0,'notice':'Finding updated. Relevance, publication date and article type remain separate.'})
+                refresh_inspect(actor,m)
+            elif kind=='outlet_priority_submit':
+                desk.set_outlet_priority(actor,m['id'],v.get('priority'),v.get('reason'))
+                store.preferences(actor,{'snapshot':time.time(),'page':0,'notice':'Outlet priority updated for your Explore lists. Coverage totals are unchanged.'})
+                refresh_inspect(actor,m)
             elif kind=='filters_submit':store.preferences(actor,{'source_filter':v.get('source_filter','all'),'history':v.get('history','current'),
                 'content_type':'all','coverage_state':'all','outlet':'','explore_view':'articles','page':0,'notice':''})
             elif kind=='manual_submit':

@@ -57,13 +57,14 @@ def home_blocks(desk,actor,monitor,p):
         state=p.get('coverage_state','confirmed')
         state={'unassessed':'attention','date_unconfirmed':'attention','uncertain':'attention','outside':'confirmed','excluded':'all'}.get(state,state)
         blocks.append(ui.actions(ui.select('coverage_state',[('Relevant','confirmed'),('Needs attention','attention'),('All results','all')],state)))
+        blocks.append(ui.context('Established reporting first, then newest within each priority. Inspect > Source details explains why.'))
+        if state=='attention':blocks.append(ui.context('Already relevant? Its date or article type may still need checking. Mark relevant changes the match only.'))
         rows=[r for r in rows if r['date_status']!='outside']
         if state=='confirmed':rows=[r for r in rows if r['relevance']=='relevant']
         elif state=='attention':rows=[r for r in rows if r['coverage_state'] in ('unassessed','uncertain','date_unconfirmed') or r.get('analysis_error') or (r['relevance']=='relevant' and r['content_type']=='unknown')]
         page=min(max(0,p.get('page',0)),max(0,(len(rows)-1)//5))
         for row in rows[page*5:page*5+5]:
-            blocks.extend(ui.finding_row(row))
-            if owner and not historical:blocks.append(ui.actions(ui.button('Correct','coverage_correct',row['id'])))
+            blocks.extend(ui.finding_row(row,can_review=owner and not historical))
         if not rows:blocks.append(ui.para('No articles match these filters. Clear the outlet or choose another filter.'))
         blocks.extend(ui.pagination(page,len(rows)))
         blocks.append(ui.actions(ui.button('Source & history filters','filters')))
@@ -83,7 +84,7 @@ def home_blocks(desk,actor,monitor,p):
     if overview['run'] and overview['run'].get('error'):blocks.append(ui.para(overview['run']['error']))
     return blocks
 
-def correction_modal(row,field='relevance',reason=''):
+def correction_modal(row,field='relevance',reason='',parent=None):
     fields=[('Relevance','relevance'),('Article type','content_type'),('Outlet name','outlet_name'),('Publication date','published')]
     if field not in dict((value,label) for label,value in fields):field='relevance'
     blocks=[ui.para(row['title']),ui.context('Change one detail. Your correction stays linked to its source.'),
@@ -98,7 +99,19 @@ def correction_modal(row,field='relevance',reason=''):
         blocks.append({'type':'input','block_id':'published','optional':True,'label':ui.plain('Publication date'),'element':element})
         blocks.append(ui.context('Use the date on the article. Clear it if the date cannot be verified.'))
     blocks.append(ui.input_text('reason','What supports this correction?',reason,False,True,1000,hint='A short note about the source is enough.'))
-    return ui.modal('Correct article',blocks,'coverage_correct_submit',{'id':row['id'],'field':field},submit='Save correction')
+    return ui.modal('Edit finding',blocks,'coverage_correct_submit',{'id':row['id'],'field':field,'parent':parent},submit='Save changes')
+
+
+def outlet_priority_modal(row,parent=None):
+    from .outlets import PRIORITY_LABELS,outlet_context
+    context=row.get('outlet_context') or outlet_context(row)
+    override=context.get('override',{})
+    return ui.modal('Outlet priority',[
+        ui.para(context['name']+' ('+context['host']+')'),
+        ui.context('Applies to this exact website in your Explore lists. This changes order, not relevance, credibility or coverage totals. Preferences expire with retained source evidence.'),
+        ui.input_select('priority','How should this outlet appear?',[(label,key) for key,label in PRIORITY_LABELS.items()],override.get('priority','default')),
+        ui.input_text('reason','Why this priority?',override.get('reason',''),max_length=500)
+    ],'outlet_priority_submit',{'id':row['id'],'parent':parent},submit='Save priority')
 
 
 def snapshot_blocks(draft):

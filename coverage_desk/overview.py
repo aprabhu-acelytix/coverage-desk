@@ -129,6 +129,8 @@ def project_articles(store,actor,monitor,at=None,history=False):
         row['projection_expires']=min([r['expires'] for r in observations]+([review['expires']] if review else [])+([alias['expires']] if alias else [])+([group_alias['expires']] if group_alias else []))
         result.append(row)
     result.sort(key=lambda r:(r.get('published') or '',r['retrieved'],r['article_id']),reverse=True)
+    from .outlets import rank_articles
+    rank_articles(result,store,actor,at)
     return {'rows':result,'run':run,'scope':scope,'at':at}
 
 def coverage_overview(store,actor,monitor,preferences=None,at=None):

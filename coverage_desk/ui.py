@@ -75,7 +75,7 @@ def author(user):
     return '<@'+user+'>' if re.fullmatch(r'[UW][A-Z0-9]+',user or '') else 'Teammate'
 
 
-def finding_row(row,board=False,duplicates=1,can_delete=False):
+def finding_row(row,board=False,duplicates=1,can_delete=False,can_review=False):
     short=row['title'][:180]+('...' if len(row['title'])>180 else '')
     blocks=[section(f"*<{esc(row['url'])}|{esc(short)}>*"),context(source_line(row))]
     if board:
@@ -85,7 +85,14 @@ def finding_row(row,board=False,duplicates=1,can_delete=False):
         blocks.append(actions(*controls))
     else:
         reason=row.get('match_reason') or (row.get('analysis') or {}).get('explanation') or 'Needs assessment'
-        blocks.extend([context(esc(reason[:220])),actions(button('Inspect','inspect',row['id']),button('Save','save',row['id']))])
+        if row.get('relevance')=='relevant':
+            reason='Relevant'+(' | Publication date unverified' if row.get('date_status')=='unconfirmed' else '')
+            if row.get('content_type')=='unknown':reason+=' | Article type unverified'
+        priority=row.get('outlet_context',{}).get('priority_label')
+        if priority and priority!='Standard priority':reason+=' | '+priority
+        controls=[button('Inspect','inspect',row['id']),button('Save','save',row['id'])]
+        if can_review and row.get('relevance')!='relevant':controls.append(button('Mark relevant','mark_relevant',row['id']))
+        blocks.extend([context(esc(reason[:220])),actions(*controls)])
     blocks.append({'type':'divider'})
     return blocks
 
@@ -260,6 +267,15 @@ def detail(row,board=False,tab='overview',page=0):
         content=[header('Source details'),para('Discovery: '+('Found through Brave Web' if row['provider']=='Brave web' else row['provider'])),
                  para('Date: '+date(row)+'\nCollected: '+time.strftime('%d %b %Y, %H:%M UTC',time.gmtime(row['retrieved']))+'\nAvailable text: '+row['access'])]
         check=row.get('provenance',{}).get('publication_check',{})
+        from .outlets import outlet_context
+        outlet=row.get('outlet_context') or outlet_context(row)
+        about=[header('About this outlet'),para(outlet['name']+' | '+outlet['host']+'\n'+outlet['description']),
+            para('Significance: '+outlet['significance']+'\nEditorial signals: '+outlet['signals']),
+            para('List priority: '+outlet['priority_label']+'\n'+outlet['priority_reason'])]
+        if outlet['references']:
+            about.append(section(' | '.join('<'+esc(r['url'])+'|'+esc(r['label'])+'>' for r in outlet['references'])))
+            about.append(context('Profile reviewed '+outlet['reviewed_on']+'. Publisher-provided information; not a guarantee of article accuracy.'))
+        content=about+content
         if check.get('status'):content.append(para('Public page check: '+check['status']))
         if board:content.append(para(row.get('verification','Provider-returned evidence.')))
         else:
@@ -306,7 +322,13 @@ def detail(row,board=False,tab='overview',page=0):
         blocks.extend([context(f'Section {page+1} of {(len(content)+5)//6}'),actions(*els)])
     blocks.append({'type':'divider'})
     if board:blocks.append(actions(button('Add perspective','perspective',ident),button('Review status','review',ident)))
-    else:blocks.append(actions(button('Save to board','save',ident)))
+    else:
+        controls=[button('Save to board','save',ident)]
+        if row.get('can_review'):
+            controls.append(button('Edit finding','coverage_correct',ident))
+            if row.get('relevance')!='relevant':controls.append(button('Mark relevant','mark_relevant',ident))
+            if tab=='source':controls.append(button('Outlet priority','outlet_priority',ident))
+        blocks.append(actions(*controls))
     return modal('Finding details',blocks,metadata=meta)
 
 

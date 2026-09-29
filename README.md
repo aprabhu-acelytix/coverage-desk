@@ -130,3 +130,11 @@ See `RESEARCH_VALIDATION.md` for the before/after comparison, exact live limits 
 **Share an overview:** Explore > Preview & share overview > explicitly approve disclosure of private client/campaign information, counts, outlet names and source excerpts > review all included sources > confirm the exact preview. This freezes counts, period, source IDs and caveats in a private draft. Only final Publish sends to the configured channel and makes the frozen copy workspace-visible. Source corrections or expiry invalidate pending publication; create a fresh snapshot. Editorial briefings remain editable; frozen overview snapshots are corrected by correcting evidence and creating a new snapshot.
 
 Current search-completeness results and remaining visual checks: [RESEARCH_COMPLETENESS_VALIDATION.md](RESEARCH_COMPLETENESS_VALIDATION.md).
+
+### Review findings and understand outlets
+
+Use **Mark relevant** on an uncertain finding to record your decision. This changes its match status only: an unknown date stays unverified and excluded from dated overview totals. Already-relevant items may still appear in Needs attention when a date or article type needs checking.
+
+**Inspect > Edit finding** replaces the old Correct buttons. Change one detail at a time. **Inspect > Source details** explains the outlet's focus, editorial signals and priority, with supporting links. Established reporting appears before standard-priority findings; items are newest-first within each priority. **Outlet priority** lets the owner raise, lower or reset an exact website's priority with a reason. No AI runs when reviewing or sorting.
+
+The initial catalog covers ten reviewed outlets; other sites are explicitly unreviewed, not labeled unreliable. Priority is a transparent editorial convenience, not an independent trust certification. See [OUTLET_UX_VALIDATION.md](OUTLET_UX_VALIDATION.md) for scope and validation.

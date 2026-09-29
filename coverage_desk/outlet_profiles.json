@@ -1,0 +1,173 @@
+[
+  {
+    "hosts": [
+      "reuters.com",
+      "www.reuters.com"
+    ],
+    "name": "Reuters",
+    "description": "International news agency covering general news and business.",
+    "significance": "Useful for international and financial news coverage.",
+    "signals": "Publishes journalistic standards covering accuracy, independence and corrections. Publisher-stated policies, not an independent reliability audit.",
+    "references": [
+      {
+        "label": "Journalistic standards",
+        "url": "https://reutersagency.com/about/standards-values/"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  },
+  {
+    "hosts": [
+      "apnews.com",
+      "www.apnews.com"
+    ],
+    "name": "Associated Press",
+    "description": "Global news organization supplying reporting across many subjects.",
+    "significance": "Useful for general news and distributed news coverage.",
+    "signals": "Publishes news values and reporting practices addressing accuracy and bias. These policies do not guarantee an individual article.",
+    "references": [
+      {
+        "label": "News values and principles",
+        "url": "https://www.ap.org/about/news-values-and-principles/"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  },
+  {
+    "hosts": [
+      "techcrunch.com",
+      "www.techcrunch.com"
+    ],
+    "name": "TechCrunch",
+    "description": "Technology and startup publication.",
+    "significance": "Technology-industry coverage.",
+    "signals": "Identifies its editors and reporters.",
+    "references": [
+      {
+        "label": "Publisher profile",
+        "url": "https://techcrunch.com/about-techcrunch/"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  },
+  {
+    "hosts": [
+      "arstechnica.com",
+      "www.arstechnica.com"
+    ],
+    "name": "Ars Technica",
+    "description": "Specialist technology publication founded in 1998, with news, reviews and analysis.",
+    "significance": "Particularly useful for technology and IT audiences; specialist relevance can matter more than general prominence.",
+    "signals": "Documents its editorial mission and specialist focus. This establishes outlet context, not independent proof of accuracy.",
+    "references": [
+      {
+        "label": "About Ars Technica",
+        "url": "https://arstechnica.com/about-us/"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  },
+  {
+    "hosts": [
+      "abcnews.com",
+      "www.abcnews.com",
+      "abcnews.go.com"
+    ],
+    "name": "ABC News (US)",
+    "description": "US-based news organization with international reporting operations.",
+    "significance": "Broad public-news coverage, rather than a single industry focus.",
+    "signals": "Disney documents editorial-independence, accuracy, correction and ethics-training commitments for ABC News. These are publisher-stated safeguards.",
+    "references": [
+      {
+        "label": "Journalistic integrity policies",
+        "url": "https://impact.disney.com/resources/journalistic-integrity-topic-brief/"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  },
+  {
+    "hosts": [
+      "espn.com",
+      "www.espn.com"
+    ],
+    "name": "ESPN",
+    "description": "Sports news and programming organization.",
+    "significance": "Useful for sports reporting and sports-industry coverage.",
+    "signals": "Disney documents editorial guidelines and ESPN Editorial Board oversight. Individual stories and commercial relationships still need evaluation.",
+    "references": [
+      {
+        "label": "Journalistic integrity policies",
+        "url": "https://impact.disney.com/resources/journalistic-integrity-topic-brief/"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  },
+  {
+    "hosts": [
+      "wired.com",
+      "www.wired.com"
+    ],
+    "name": "WIRED",
+    "description": "Publication covering the effects of technology and science on business, politics and culture.",
+    "significance": "Useful for technology's wider social and industry impact.",
+    "signals": "Describes reporting assignments and identifies subject editors. This is an editorial-transparency signal, not a reliability certification.",
+    "references": [
+      {
+        "label": "Editorial scope and process",
+        "url": "https://www.wired.com/about/how-to-pitch-stories-to-wired/"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  },
+  {
+    "hosts": [
+      "theverge.com",
+      "www.theverge.com"
+    ],
+    "name": "The Verge",
+    "description": "Technology-focused editorial publication.",
+    "significance": "Useful for technology news and product coverage.",
+    "signals": "Publishes an ethics statement addressing editorial independence and conflicts. Evaluate the article's evidence as well as the outlet's policy.",
+    "references": [
+      {
+        "label": "Ethics statement",
+        "url": "https://www.theverge.com/ethics-statement"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  },
+  {
+    "hosts": [
+      "theguardian.com",
+      "www.theguardian.com"
+    ],
+    "name": "The Guardian",
+    "description": "General-news publication.",
+    "significance": "International coverage.",
+    "signals": "Documents its newsroom mission and trust ownership.",
+    "references": [
+      {
+        "label": "Publisher profile",
+        "url": "https://www.theguardian.com/about"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  },
+  {
+    "hosts": [
+      "nbcnews.com",
+      "www.nbcnews.com"
+    ],
+    "name": "NBC News",
+    "description": "News broadcaster and digital publisher.",
+    "significance": "General-news coverage.",
+    "signals": "Identifies its news programs and organization.",
+    "references": [
+      {
+        "label": "Publisher profile",
+        "url": "https://www.nbcnews.com/information/nbc-news-info/about-nbc-news-digital-n1232178"
+      }
+    ],
+    "reviewed_on": "2026-09-29"
+  }
+]
