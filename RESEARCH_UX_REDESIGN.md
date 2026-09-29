@@ -1,5 +1,8 @@
 > Active revision: [COVERAGE_OVERVIEW.md](COVERAGE_OVERVIEW.md) supersedes article-list defaults and latest-run-only counting in this earlier research brief. Preserve its privacy, owner-only research, evidence, collaboration and publishing boundaries.
 
+Owner revision - 29 September 2026: Overview defaults to all relevant findings across all source types, including unknown or conflicting publication dates. Label these as relevant findings, with verified-date and unconfirmed-date counts; do not imply all are reporting or verified within the period. Confirmed outside-period and non-relevant/unassessed findings remain excluded. Default Overview, chart, outlet drill-down and Relevant use the same deduplicated retained-scope projection before pagination. Reporting remains an optional filter. Sharing freezes date caveats and counts; existing snapshots remain unchanged. This supersedes conflicting confirmed-period-only or reporting-only default requirements below.
+
+
 # Coverage Desk — research quality and Slack experience redesign
 
 The bounded adaptive social search extension is specified in [SOCIAL_SEARCH.md](SOCIAL_SEARCH.md). It retains the existing provider, restrictions, assessment pipeline, filtering and source-priority rules.

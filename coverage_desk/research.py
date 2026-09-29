@@ -99,6 +99,19 @@ def followup_tasks(monitor,scope,tasks,events,limit):
     from .models import canonical_url
     if limit<=0:return []
     statuses=search_statuses(tasks,events)
+    reporting=[]
+    # Date operators/calendar wording can suppress launch-week coverage. Reserve
+    # the first spare route for reporting before optional social follow-ups.
+    for task in tasks:
+        if task['target'] not in ('news','web') or task.get('purpose')!='focus':continue
+        if not any(s['query']==task['query'] and s['requested'] for s in statuses):continue
+        query=' '.join(re.sub(r'(?:after|before):\S+','',task['query'],flags=re.I).split())
+        end=datetime.fromisoformat(scope['window']['end'])-timedelta(microseconds=1)
+        query=re.sub(r'\s+'+re.escape(end.strftime('%B %Y'))+r'$','',query)
+        if query!=task['query'] and query not in [t['query'] for t in reporting]:
+            reporting.append({'query':query,'target':task['target'],'purpose':'focus','date_strategy':'Verify publication after discovery'})
+        if len(reporting)>=1:break
+    if len(reporting)>=limit:return reporting[:limit]
     targets=[t for t in monitor['sources'] if t in PLATFORMS and
              any(s['target']==t and s['requested'] for s in statuses)]
     # Give sparse sites another route first; stable ties preserve user selection.
@@ -141,7 +154,7 @@ def followup_tasks(monitor,scope,tasks,events,limit):
             if tags:candidates.append({'query':clean(monitor['name'])+' '+' '.join(tags)+' site:'+domain+month,
                 'target':target,'purpose':'related','date_strategy':'Verify publication after discovery'})
         queues[target]=candidates
-    result=[];used={t['query'] for t in tasks}
+    result=list(reporting);used={t['query'] for t in tasks+reporting}
     for round_number in range(4):
         for target in targets:
             queue=queues[target]

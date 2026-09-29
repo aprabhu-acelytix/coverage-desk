@@ -460,7 +460,8 @@ def test_owner_classification_correction_dispatch_is_audited(app_env):
     view=form_view({'content_type':'sponsored','reason':'Synthetic sponsorship disclosure'},meta,'CORRECT')
     view['callback_id']='coverage_correct_submit';submit(app,view)
     await_true(lambda:bool(st.list(o,'coverage_review')))
-    assert coverage_overview(st,o,m)['article_count']==0
+    assert coverage_overview(st,o,m)['article_count']==1
+    assert coverage_overview(st,o,m,{'content_type':'reporting'})['article_count']==0
     assert st.list(o,'coverage_review')[0]['owner']==o.user
     assert st.budgets()['ai']['used']==0
 

@@ -1,5 +1,8 @@
 # Public social discovery
 
+Owner revision - 29 September 2026: Overview defaults to all relevant findings across all source types, including unknown or conflicting publication dates. Label these as relevant findings, with verified-date and unconfirmed-date counts; do not imply all are reporting or verified within the period. Confirmed outside-period and non-relevant/unassessed findings remain excluded. Default Overview, chart, outlet drill-down and Relevant use the same deduplicated retained-scope projection before pagination. Reporting remains an optional filter. Sharing freezes date caveats and counts; existing snapshots remain unchanged. This supersedes conflicting confirmed-period-only or reporting-only default requirements below.
+
+
 Coverage Desk searches public web results for Instagram, X, LinkedIn, Facebook,
 TikTok, Reddit and YouTube. These are search targets, not authenticated platform
 integrations. No scraping, login, video/transcript download or new provider is

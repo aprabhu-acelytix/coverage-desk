@@ -59,10 +59,11 @@ def test_news_hit_is_not_reporting_and_categories_stay_inspectable(env):
     for kind in ('reporting','client_owned','press_release','sponsored','social','unknown'):
         article(st,o,m,'https://'+kind.replace('_','-')+'.example/story',kind)
     data=overview(env)
-    assert data['article_count']==1 and len(data['rows'])==6
-    assert overview(env,content_type='all')['article_count']==6
+    assert data['article_count']==6 and len(data['rows'])==6
+    assert overview(env,content_type='reporting')['article_count']==1
     source=article(st,o,m,'https://news.example/no-type');source['analysis'].pop('coverage');source['provider']='Brave news';st.update(o,source['id'],source)
-    assert overview(env)['article_count']==1
+    assert overview(env)['article_count']==7
+    assert overview(env,content_type='reporting')['article_count']==1
 
 def test_relevance_dates_and_assessment_are_independent(env):
     d,st,o,m=env
@@ -71,7 +72,8 @@ def test_relevance_dates_and_assessment_are_independent(env):
     article(st,o,m,'https://a.example/old',date='2020-01-01T12:00:00+00:00')
     article(st,o,m,'https://a.example/critical')
     data=overview(env)
-    assert data['article_count']==1
+    assert data['article_count']==2
+    assert data['confirmed_date_count']==data['unconfirmed_date_count']==1
     assert data['states']['date_unconfirmed']==data['states']['unassessed']==data['states']['outside']==1
     assert next(r for r in data['rows'] if r['coverage_state']=='unassessed')['date_status']=='confirmed'
 
@@ -82,7 +84,8 @@ def test_new_negative_assessment_overrides_old_positive(env):
 
 def test_date_window_is_rechecked_and_retrieval_date_never_used(env):
     d,st,o,m=env;r=article(st,o,m,date=None)
-    assert overview(env)['article_count']==0
+    assert overview(env)['article_count']==overview(env)['unconfirmed_date_count']==1
+    assert overview(env)['articles'][0]['published'] is None
     now=datetime.now(timezone.utc)
     d.correct_coverage(o,r['id'],{'date_action':'set','published':(now-timedelta(days=2)).isoformat(),'reason':'Owner reviewed explicit publisher metadata'})
     data=coverage_overview(st,o,m,at=now.timestamp()+1)

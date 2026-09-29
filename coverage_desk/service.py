@@ -74,7 +74,7 @@ class Desk:
             self.correct_coverage(actor,source_id,{'relevance':'relevant','reason':'Owner marked this finding relevant in Slack.'})
         row=self.finding_detail(actor,source_id)
         notice='Marked relevant. Available in the Relevant view.'
-        if row.get('date_status')=='unconfirmed':notice+=' Publication date is still unverified; it remains outside dated totals.'
+        if row.get('date_status')=='unconfirmed':notice+=' Included in Overview with publication date unconfirmed.'
         elif row.get('date_status')=='outside':notice+=' Its verified date is outside this period, so it remains outside current results.'
         self.store.preferences(actor,{'snapshot':time.time(),'page':0,'notice':notice})
         return row
@@ -142,7 +142,7 @@ class Desk:
         with self.store.transaction():
             monitor=self.store.get(actor,monitor_id,'monitor')
             overview=coverage_overview(self.store,actor,monitor,preferences)
-            if not overview['articles']:raise DeskError('No confirmed articles in this category to share. Review the evidence or choose another category.')
+            if not overview['articles']:raise DeskError('No relevant findings in this category to share. Review the evidence or choose another category.')
             entries=[]
             for row in overview['articles']:
                 self.allowed_source(row)
@@ -153,6 +153,7 @@ class Desk:
                 entries[-1]['classification_evidence']={'method':evidence['method'],
                     'quote':evidence.get('quote','') if evidence['method']=='AI assessment' else ''}
             frozen={k:overview[k] for k in ('at','category','article_count','outlet_count','partial','caveats','freshness')}
+            frozen.update({k:overview[k] for k in ('inclusion_policy','confirmed_date_count','unconfirmed_date_count')})
             frozen['scope']={'window':overview['scope']['window'],'id':overview['scope']['id']}
             frozen['outlets']=[{k:o[k] for k in ('id','key','name','count')} for o in overview['outlets']]
             frozen['sources']=entries;frozen['client']=monitor['name'];frozen['campaign']=monitor.get('campaign','')

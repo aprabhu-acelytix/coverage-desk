@@ -1,5 +1,8 @@
 # Coverage Desk — Codex implementation brief
 
+Owner revision - 29 September 2026: Overview defaults to all relevant findings across all source types, including unknown or conflicting publication dates. Label these as relevant findings, with verified-date and unconfirmed-date counts; do not imply all are reporting or verified within the period. Confirmed outside-period and non-relevant/unassessed findings remain excluded. Default Overview, chart, outlet drill-down and Relevant use the same deduplicated retained-scope projection before pagination. Reporting remains an optional filter. Sharing freezes date caveats and counts; existing snapshots remain unchanged. This supersedes conflicting confirmed-period-only or reporting-only default requirements below.
+
+
 For the implemented public social discovery workflow and default source ordering, see [SOCIAL_SEARCH.md](SOCIAL_SEARCH.md). Its two native passes share the existing per-run allowance; no direct platform integrations or traffic estimates are added.
 
 **Revision 2 · ChatGPT-authenticated local runtime · 27 September 2026**

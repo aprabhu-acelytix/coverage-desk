@@ -1,3 +1,5 @@
+Historical validation: the 29 September owner revision supersedes the confirmed-date-only inclusion policy described here. See RELEVANT_OVERVIEW_VALIDATION.md for current behavior.
+
 # Overview and Relevant counts — 29 September 2026
 
 The owner's existing Chipotle / Chili Lime Chips search reproduced the discrepancy

@@ -55,7 +55,7 @@ def test_mark_relevant_dispatch_preserves_dates_messages_and_usage(app_env):
     await_true(lambda:bool(st.list(o,'coverage_review')))
     data=coverage_overview(st,o,m)
     assert data['rows'][0]['relevance']=='relevant'
-    assert data['rows'][0]['date_status']=='unconfirmed' and data['article_count']==0
+    assert data['rows'][0]['date_status']=='unconfirmed' and data['article_count']==1
     assert st.get(o,r['id'])['analysis']==before and st.budgets()==budget
     assert 'date' in st.preferences(o)['notice'].lower()
     d.mark_relevant(o,r['id'])

@@ -9,7 +9,7 @@ def period(window):
 
 def home_blocks(desk,actor,monitor,p):
     p=dict(p)
-    if p.get('content_type','reporting') not in ('reporting','all'):p['content_type']='all'
+    if p.get('content_type','all') not in ('reporting','all'):p['content_type']='all'
     owner=actor.user==desk.s.owner
     overview=coverage_overview(desk.store,actor,monitor,p)
     blocks=[ui.actions(ui.button('Overview','coverage_view_overview','overview',p.get('explore_view','overview')=='overview'),
@@ -19,17 +19,15 @@ def home_blocks(desk,actor,monitor,p):
     partial=overview['partial'] or busy
     view=p.get('explore_view','overview')
     if view=='overview':
-        label='confirmed reporting' if overview['category']=='reporting' else 'confirmed-period'
         count=overview['article_count'];outlets=overview['outlet_count']
-        blocks.append(ui.para(f"Coverage found · {count} {label} article"+('' if count==1 else 's')+f" · {outlets} outlet"+('' if outlets==1 else 's')))
+        blocks.append(ui.para(f"Coverage found · {count} relevant finding"+('' if count==1 else 's')+f" · {outlets} source"+('' if outlets==1 else 's')))
     freshness=time.strftime('%d %b, %H:%M UTC',time.gmtime(overview['freshness'])) if overview['freshness'] else 'Not collected yet'
     blocks.append(ui.context(ui.esc(period(overview['scope']['window']))+' | '+('Partial collection' if partial else 'Retained collection')+' | Last checked '+freshness))
     if view=='overview':
         counts=overview['reconciliation']
-        parts=[f"{counts['counted']} counted here"]
-        if counts['date_unconfirmed']:parts.append(f"{counts['date_unconfirmed']} with unconfirmed dates")
-        if counts['other_type']:parts.append(f"{counts['other_type']} dated but outside this source type (including unknown types)")
-        blocks.append(ui.context(f"{counts['relevant']} relevant findings in Articles: "+'; '.join(parts)+'.'))
+        parts=[f"{overview['confirmed_date_count']} dates verified",f"{counts['date_unconfirmed']} dates unconfirmed"]
+        if counts['other_type']:parts.append(f"{counts['other_type']} other relevant findings hidden by the Reporting filter")
+        blocks.append(ui.context(' · '.join(parts)+'. Unknown-date findings are included; confirmed outside-period findings are excluded.'))
         capabilities=desk.store.list(actor,'slack_capabilities')
         supported=capabilities and capabilities[0].get('home',{}).get('data_visualization',{}).get('supported')
         chart=chart_block(overview)
@@ -37,10 +35,11 @@ def home_blocks(desk,actor,monitor,p):
         elif chart:blocks.append(ui.context('Native chart availability is unverified or unavailable here. Exact outlet counts are listed below.'))
         blocks.append(ui.actions(ui.select('coverage_category',[('Reporting','reporting'),('All source types','all')],overview['category'])))
         if not overview['outlets']:
-            blocks.append(ui.para('No confirmed '+CONTENT_TYPES.get(overview['category'],'coverage').lower()+' in this period yet. Open Articles to see available evidence and any access or date limitations.'))
+            blocks.append(ui.para('No relevant findings in this source category yet. Open Articles to inspect uncertain matches or change the source type.'))
         outlets=overview['outlets'];page=min(max(0,p.get('outlet_page',0)),max(0,(len(outlets)-1)//8))
         for number,outlet in enumerate(outlets[page*8:page*8+8],start=page*8+1):
-            blocks.append(ui.section('*'+str(number)+'. '+ui.esc(outlet['name'])+'* · '+str(outlet['count'])+' article'+('' if outlet['count']==1 else 's')))
+            unknown=sum(r['date_status']!='confirmed' for r in outlet['articles'])
+            blocks.append(ui.section('*'+str(number)+'. '+ui.esc(outlet['name'])+'* · '+str(outlet['count'])+' finding'+('' if outlet['count']==1 else 's')+(f' · {unknown} dates unconfirmed' if unknown else '')))
             titles='\n'.join('• '+r['title'][:160] for r in outlet['articles'][:2])
             blocks.append(ui.para(titles))
             blocks.append(ui.actions(ui.button('View articles','coverage_outlet',outlet['id'])))
@@ -69,16 +68,16 @@ def home_blocks(desk,actor,monitor,p):
         if state=='attention':blocks.append(ui.context('Already relevant? Its date or article type may still need checking. Mark relevant changes the match only.'))
         rows=[r for r in rows if r['date_status']!='outside']
         if state=='confirmed':
-            rows=[r for r in rows if r['relevance']=='relevant' and (not selected or historical or r['coverage_state']=='confirmed')]
+            rows=[r for r in rows if r['relevance']=='relevant']
         elif state=='attention':rows=[r for r in rows if r['coverage_state'] in ('unassessed','uncertain','date_unconfirmed') or r.get('analysis_error') or (r['relevance']=='relevant' and r['content_type']=='unknown')]
         label={'confirmed':'relevant','attention':'needs-attention','all':'collected'}.get(state,'collected')
         blocks.append(ui.para(f"{len(rows)} {label} finding"+('' if len(rows)==1 else 's')))
         if not historical:
             counted_ids={r['article_id'] for r in overview['articles']}
             counted=sum(r['article_id'] in counted_ids for r in rows)
-            blocks.append(ui.context(f"{counted} counted in Overview. Overview counts only relevant "+
-                ('reporting with verified dates in this period.' if overview['category']=='reporting' else 'sources with verified dates in this period.')+
-                (' This outlet’s Relevant view matches its overview count; Needs attention and All results show additional evidence.' if selected else ' Relevant also includes other source types and findings with unconfirmed dates.')))
+            blocks.append(ui.context(f"{counted} counted in Overview. Relevant findings with unknown dates are included."+
+                (' Overview is filtered to Reporting.' if overview['category']=='reporting' else '')+
+                (' Needs attention and All results show additional evidence from this source.' if selected else '')))
         page=min(max(0,p.get('page',0)),max(0,(len(rows)-1)//5))
         for row in rows[page*5:page*5+5]:
             blocks.extend(ui.finding_row(row,can_review=owner and not historical))
@@ -135,7 +134,7 @@ def snapshot_blocks(draft):
     data=draft['overview']
     blocks=[ui.header('Coverage found'),ui.para(data['client']+(' · '+data['campaign'] if data.get('campaign') else '')),
         ui.context(period(data['scope']['window'])),
-        ui.para(f"{data['article_count']} unique article appearances · {data['outlet_count']} outlets · {CONTENT_TYPES.get(data['category'],'All content types')}"),
+        ui.para(f"{data['article_count']} "+('relevant findings' if data.get('inclusion_policy') else 'unique article appearances')+f" · {data['outlet_count']} outlets / sources · {CONTENT_TYPES.get(data['category'],'All content types')}"),
         ui.context('Frozen '+time.strftime('%d %b %Y, %H:%M UTC',time.gmtime(data['at']))+' · '+('Partial collection' if data['partial'] else 'Retained collection'))]
     for outlet in data['outlets'][:8]:blocks.append(ui.para(outlet['name']+' — '+str(outlet['count'])))
     if len(data['outlets'])>8:blocks.append(ui.para('Other outlets: '+str(sum(o['count'] for o in data['outlets'][8:]))+' appearances at '+str(len(data['outlets'])-8)+' outlets.'))
@@ -147,11 +146,11 @@ def snapshot_blocks(draft):
 
 def snapshot_modal(draft,page=0,tab='sources'):
     data=draft['overview'];sources=data['sources'];page=min(max(0,page),max(0,(len(sources)-1)//5))
-    blocks=[ui.para(data['client']+' · '+str(data['article_count'])+' article appearances / '+str(data['outlet_count'])+' outlets'),ui.context(period(data['scope']['window']))]
+    blocks=[ui.para(data['client']+' · '+str(data['article_count'])+(' relevant findings / ' if data.get('inclusion_policy') else ' article appearances / ')+str(data['outlet_count'])+' outlets'),ui.context(period(data['scope']['window']))]
     blocks.append(ui.actions(ui.button('Sources','overview_snapshot_sources',0,tab=='sources'),ui.button('Outlet breakdown','overview_snapshot_outlets',0,tab=='outlets')))
     if tab=='outlets':
         outlets=data['outlets'];page=min(max(0,page),max(0,(len(outlets)-1)//12))
-        blocks.extend(ui.para(o['name']+' — '+str(o['count'])+' articles') for o in outlets[page*12:page*12+12])
+        blocks.extend(ui.para(o['name']+' — '+str(o['count'])+(' findings' if data.get('inclusion_policy') else ' articles')) for o in outlets[page*12:page*12+12])
         controls=[]
         if page:controls.append(ui.button('Previous outlets','overview_outlets_previous',page-1))
         if (page+1)*12<len(outlets):controls.append(ui.button('More outlets','overview_outlets_next',page+1))
@@ -159,7 +158,7 @@ def snapshot_modal(draft,page=0,tab='sources'):
         return ui.modal('Coverage snapshot',blocks,metadata={'id':draft['id']})
     for s in sources[page*5:page*5+5]:
         blocks.extend([ui.section('*'+ui.esc(s['outlet_name'])+'*\n<'+ui.esc(s['url'])+'|'+ui.esc(s['title'])+'>'),
-            ui.context(str(s['published'])+' · '+CONTENT_TYPES[s['content_type']]),ui.para(s['text'][:2000])])
+            ui.context((str(s['published']) if s.get('date_kind') in ('publication','owner_confirmed') and s.get('published') else 'Publication date unconfirmed')+' · '+CONTENT_TYPES[s['content_type']]),ui.para(s['text'][:2000])])
         if s.get('classification_evidence',{}).get('quote'):blocks.append(ui.para('Content-type evidence: '+s['classification_evidence']['quote']))
     controls=[]
     if page:controls.append(ui.button('Previous sources','overview_sources_previous',page-1))

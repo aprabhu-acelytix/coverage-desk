@@ -28,7 +28,7 @@ def main(args):
     except Exception as exc:report['error']=str(exc) if isinstance(exc,DeskError) else type(exc).__name__
     finally:
         report.update(after=coverage_overview(st,actor,monitor),usage_after=st.budgets(),elapsed=round(time.monotonic()-started,1))
-        st.preferences(actor,{'monitor':monitor['id'],'tab':'explore','explore_view':'overview','content_type':'reporting',
+        st.preferences(actor,{'monitor':monitor['id'],'tab':'explore','explore_view':'overview','content_type':'all',
             'coverage_state':'confirmed','outlet':'','outlet_page':0,'page':0,'snapshot':time.time(),'notice':''})
         try:client.views_publish(user_id=actor.user,view=ui.home(desk,actor));report['home_payload_accepted']=True
         except Exception as exc:report['home_payload_error']=getattr(exc,'response',{}).get('error','request_failed')

@@ -152,7 +152,7 @@ def create_app(s,store,client):
                 if value not in ('explore','board','briefings'):raise DeskError('Unknown view.')
                 store.preferences(actor,{'tab':value,'page':0,'notice':''})
             elif kind.startswith('page_'):store.preferences(actor,{'page':max(0,int(value))})
-            elif kind=='monitor_select':store.get(actor,value,'monitor');store.preferences(actor,{'monitor':value,'page':0,'snapshot':time.time(),'notice':'','outlet':'','outlet_page':0,'explore_view':'overview','content_type':'reporting','coverage_state':'confirmed'})
+            elif kind=='monitor_select':store.get(actor,value,'monitor');store.preferences(actor,{'monitor':value,'page':0,'snapshot':time.time(),'notice':'','outlet':'','outlet_page':0,'explore_view':'overview','content_type':'all','coverage_state':'confirmed'})
             elif kind.startswith('coverage_view_'):
                 if value not in ('overview','articles'):raise DeskError('Unknown coverage view.')
                 store.preferences(actor,{'explore_view':value,'page':0,'notice':''})
@@ -355,7 +355,7 @@ def create_app(s,store,client):
                 return
             if kind=='monitor_submit':
                 row=desk.monitor(actor,v,m.get('id'))
-                store.preferences(actor,{'monitor':row['id'],'outlet':'','outlet_page':0,'explore_view':'overview','content_type':'reporting','coverage_state':'confirmed','tab':'explore','filter':'relevant','history':'current','source_filter':'all','page':0,'snapshot':time.time(),'notice':''})
+                store.preferences(actor,{'monitor':row['id'],'outlet':'','outlet_page':0,'explore_view':'overview','content_type':'all','coverage_state':'confirmed','tab':'explore','filter':'relevant','history':'current','source_filter':'all','page':0,'snapshot':time.time(),'notice':''})
                 try:desk.submit(actor,'Researching coverage',lambda cancel:desk.research(actor,row['id'],cancel),True,key='search:'+body['view']['id']+':'+body['view'].get('hash',''))
                 except DeskError as exc:store.preferences(actor,{'notice':'Search saved. '+str(exc)+' Use Refresh when ready.'})
             elif kind=='delete_monitor_submit':

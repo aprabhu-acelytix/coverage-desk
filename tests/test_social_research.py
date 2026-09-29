@@ -30,6 +30,16 @@ def test_general_entity_disambiguation_survives_social_expansion():
     p={'queries':[{'query':'Meta Metaverse','purpose':'focus'}]}
     assert '(Meta) Metaverse' in search_tasks(m,p,s)[0]['query']
 
+
+def test_reporting_gets_date_relaxed_route_before_optional_social_followup():
+    from coverage_desk.research import initial_tasks,followup_tasks
+    m,p,s=setup();tasks=initial_tasks(search_tasks(m,p,s),12)
+    events=[{'query':t['query'],'results':[]} for t in tasks]
+    follow=followup_tasks(m,s,tasks,events,1)
+    assert follow[0]['target']=='news'
+    assert follow[0]['query']=='Acme Robotics Nova launch'
+    assert 'September 2026' not in follow[0]['query']
+
 def test_breadth_before_followups_and_total_reservations_bounded():
     from coverage_desk.research import initial_tasks,followup_tasks
     m,p,s=setup();tasks=initial_tasks(search_tasks(m,p,s),12)

@@ -149,16 +149,16 @@ def project_articles(store,actor,monitor,at=None,history=False):
 def coverage_overview(store,actor,monitor,preferences=None,at=None):
     p=preferences or {};at=at if at is not None else p.get('snapshot',time.time())
     projected=project_articles(store,actor,monitor,at)
-    category=p.get('content_type','reporting')
-    if category not in (*CONTENT_TYPES,'all'):category='reporting'
+    category=p.get('content_type','all')
+    if category not in (*CONTENT_TYPES,'all'):category='all'
     rows=projected['rows'];filtered=[r for r in rows if category=='all' or r['content_type']==category]
-    confirmed=[r for r in filtered if r['coverage_state']=='confirmed']
+    included=[r for r in filtered if r['relevance']=='relevant' and r['date_status']!='outside']
     relevant=[r for r in rows if r['relevance']=='relevant' and r['date_status']!='outside']
-    reconciliation={'relevant':len(relevant),'counted':len(confirmed),
-        'date_unconfirmed':sum(r['date_status']!='confirmed' for r in relevant),
-        'other_type':sum(r['date_status']=='confirmed' and category!='all' and r['content_type']!=category for r in relevant)}
+    reconciliation={'relevant':len(relevant),'counted':len(included),
+        'date_unconfirmed':sum(r['date_status']!='confirmed' for r in included),
+        'other_type':len(relevant)-len(included)}
     outlets={}
-    for row in confirmed:
+    for row in included:
         entry=outlets.setdefault(row['outlet_id'],{'id':row['outlet_id'],'key':row['outlet_key'],'name':row['outlet_name'],'articles':[],'count':0})
         entry['articles'].append(row);entry['count']+=1
     ordered=sorted(outlets.values(),key=lambda r:(-r['count'],r['name'].casefold(),r['key']))
@@ -167,10 +167,13 @@ def coverage_overview(store,actor,monitor,preferences=None,at=None):
     partial=not run or bool(pending) or bool(run.get('limited')) or run.get('outcome') in ('Researching','Unavailable','Partial results','Interrupted','Cancelled') or bool(run.get('error')) or any(not s.get('requested',True) for s in run.get('statuses',[]))
     caveats=['Coverage found in retained sources; not a complete census of online coverage.',
         'Counts are unique article appearances per outlet. Syndicated copies at different outlets are not independent stories.']
-    if partial:caveats.append('Partial collection: unassessed, unverified or unfinished evidence is excluded from confirmed totals.')
-    return {**projected,'category':category,'articles':confirmed,'outlets':ordered,'article_count':len(confirmed),'outlet_count':len(ordered),
+    unconfirmed=sum(r['date_status']!='confirmed' for r in included)
+    if unconfirmed:caveats.append(f'{unconfirmed} included findings have unconfirmed publication dates; their presence in the selected period is not verified.')
+    if partial:caveats.append('Partial collection: uncertain matches, unassessed evidence and unfinished retrieval may remain. Relevant findings with unknown dates are included.')
+    return {**projected,'category':category,'articles':included,'outlets':ordered,'article_count':len(included),'outlet_count':len(ordered),
         'reconciliation':reconciliation,
-        'states':states,'category_counts':dict(Counter(r['content_type'] for r in rows if r['coverage_state']=='confirmed')),
+        'inclusion_policy':'relevant_with_unknown_dates','confirmed_date_count':len(included)-unconfirmed,'unconfirmed_date_count':unconfirmed,
+        'states':states,'category_counts':dict(Counter(r['content_type'] for r in relevant)),
         'partial':partial,'caveats':caveats,'freshness':run.get('checked') if run else None}
 
 def chart_block(overview):
@@ -178,6 +181,6 @@ def chart_block(overview):
     if not outlets:return None
     points=[{'label':f'{i+1} {o["name"]}'[:20],'value':o['count']} for i,o in enumerate(outlets[:8])]
     if len(outlets)>8:points.append({'label':'Other outlets','value':sum(o['count'] for o in outlets[8:])})
-    return {'type':'data_visualization','title':'Articles by outlet','chart':{'type':'bar',
-        'series':[{'name':'Unique articles','data':points}],
-        'axis_config':{'categories':[p['label'] for p in points],'x_label':'Outlet','y_label':'Unique articles'}}}
+    return {'type':'data_visualization','title':'Relevant findings by source','chart':{'type':'bar',
+        'series':[{'name':'Relevant findings','data':points}],
+        'axis_config':{'categories':[p['label'] for p in points],'x_label':'Outlet or source','y_label':'Relevant findings'}}}

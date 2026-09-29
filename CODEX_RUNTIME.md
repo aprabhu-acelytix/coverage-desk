@@ -1,5 +1,8 @@
 # Codex runtime — personal ChatGPT sign-in
 
+Owner revision - 29 September 2026: Overview defaults to all relevant findings across all source types, including unknown or conflicting publication dates. Label these as relevant findings, with verified-date and unconfirmed-date counts; do not imply all are reporting or verified within the period. Confirmed outside-period and non-relevant/unassessed findings remain excluded. Default Overview, chart, outlet drill-down and Relevant use the same deduplicated retained-scope projection before pagination. Reporting remains an optional filter. Sharing freezes date caveats and counts; existing snapshots remain unchanged. This supersedes conflicting confirmed-period-only or reporting-only default requirements below.
+
+
 Adaptive social discovery uses up to two existing `discover` operations, sharing the run allowance as described in [SOCIAL_SEARCH.md](SOCIAL_SEARCH.md). Each pass retains the same role isolation and one boundary reservation. The total reservation ceiling remains `calls + 1`; two-pass discovery therefore plans at most `calls - 1` searches. No runtime tool permissions or authentication interfaces change.
 
 This document changes how the app obtains AI analysis; it does not turn Coverage Desk into a chatbot or a public AI service. Implement one small adapter, not a general agent platform.
