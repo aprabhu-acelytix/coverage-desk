@@ -1,5 +1,7 @@
 # Coverage Overview: active product and implementation guidance
 
+Public social discovery now follows [SOCIAL_SEARCH.md](SOCIAL_SEARCH.md). It preserves this projection and ranking: filters never undo outlet priority or discard lower-priority findings. Social search excerpts do not enter reporting totals merely because they were discovered.
+
 This revision supersedes article-list-first and latest-run-only instructions in earlier briefs. Preserve Python/Bolt/Socket Mode/SQLite, the existing providers, managed ChatGPT authentication, private/shared collaboration and exact publishing confirmation. No new platforms, scheduler features, chat, dashboard or hosting.
 
 ## Owner workflow

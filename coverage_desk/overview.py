@@ -27,6 +27,15 @@ def publication_dates(observations):
         except (ValueError,TypeError):pass
     return dates
 
+def publication_days(observations):
+    from datetime import date
+    days=set()
+    for row in observations:
+        if row.get('date_kind')=='publication' and row.get('date_precision')=='day':
+            try:days.add(date.fromisoformat(row['published']).isoformat())
+            except (ValueError,TypeError,KeyError):pass
+    return days
+
 def article_state(row,monitor,window):
     assessment=row.get('analysis')
     row['assessment_status']='Assessed' if assessment else 'Unassessed'
@@ -94,6 +103,10 @@ def project_articles(store,actor,monitor,at=None,history=False):
             if len(dates)==1:row.update(published=next(iter(dates)),date_kind='publication')
         dates=publication_dates(observations)
         if len(dates)>1 and not (review and 'published' in review['changes']):row.update(published=None,date_kind='conflicting')
+        days=publication_days(observations)
+        if days and not (review and 'published' in review['changes']):
+            if len(days)>1 or dates and any(d[:10] not in days for d in dates):row.update(published=None,date_kind='conflicting')
+            elif not dates:row.update(published=next(iter(days)),date_kind='publication',date_precision='day')
         profile=(row.get('provenance',{}).get('publication_check') or {}).get('source_profile',{})
         classification=row.get('coverage') or (row.get('analysis') or {}).get('coverage') or {}
         row['content_type']=classification.get('content_type','unknown')

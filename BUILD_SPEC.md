@@ -1,5 +1,7 @@
 # Coverage Desk — Codex implementation brief
 
+For the implemented public social discovery workflow and default source ordering, see [SOCIAL_SEARCH.md](SOCIAL_SEARCH.md). Its two native passes share the existing per-run allowance; no direct platform integrations or traffic estimates are added.
+
 **Revision 2 · ChatGPT-authenticated local runtime · 27 September 2026**
 
 This version supersedes the API-key starter. The application must use the owner's Codex-managed ChatGPT sign-in for live AI analysis. No OpenAI API key, API billing setup, or API fallback. Read `CODEX_RUNTIME.md` alongside this brief; it defines the runtime boundary, not additional product features.

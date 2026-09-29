@@ -62,7 +62,8 @@ def finding_selection(store, actor, preferences):
     else:filtered=[r for r in source_rows if filt=='all' or r['eligibility']==filt]
     # A research job advances the results snapshot when it finishes; browsing never does.
     rows=[r for r in filtered if r['created']<=boundary]
-    rows.sort(key=lambda r:(r.get('published') or '',r['retrieved'],r['article_id']),reverse=True)
+    # project_articles already applies reviewed outlet/owner priority and stable
+    # date ties before pagination. Filtering must not silently undo that order.
     page=min(max(0,p.get('page',0)),max(0,(len(rows)-1)//5))
     # Count unseen identities without shifting the user's stable page.
     known={r['article_id'] for r in projected_data['rows']}

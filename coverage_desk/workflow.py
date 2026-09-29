@@ -65,12 +65,46 @@ def read_sources(desk,actor,monitor,rows,cancel):
                 desk.store.update(actor,item['id'],item)
             desk.progress(actor,{'stage':f'Reading available pages: {completed}/{len(candidates)}','pages_checked':completed,'pages_total':len(candidates)})
 
+
+def combine_social_evidence(desk,actor,monitor,rows):
+    """Assess retained same-URL search excerpts together; keep their provenance."""
+    raw=desk.store.list(actor,'finding')
+    for row in rows:
+        if not platform(row['url']) or row['provider']!='Codex web':continue
+        matches=[r for r in raw if r.get('monitor_id')==monitor['id'] and r.get('scope_key')==scope_key(monitor)
+                 and r.get('monitor_revision')==monitor['revision'] and r['provider']=='Codex web'
+                 and canonical_url(r['url'])==canonical_url(row['url'])]
+        # Keep the representative's already-assessed text intact. If a later
+        # assessment fails, earlier exact quotations still have their evidence.
+        parts=[row['text']] if row.get('text') else []
+        length=len(row.get('text',''));included=[row] if parts else []
+        for item in sorted(matches,key=lambda r:(r['created'],r['id']),reverse=True):
+            text=item.get('provenance',{}).get('original_search_excerpt',item.get('text',''))
+            if not text or text in '\n\n'.join(parts):continue
+            remaining=desk.s.input_item-length-(2 if parts else 0)
+            if remaining<=0:break
+            parts.append(text[:remaining]);length+=len(parts[-1])+(2 if len(parts)>1 else 0);included.append(item)
+        combined='\n\n'.join(parts)
+        if combined and combined!=row['text']:
+            item=desk.store.get(actor,row['id'],'finding')
+            item.setdefault('provenance',{}).setdefault('original_search_excerpt',item['text'])
+            item['provenance']['combined_search_sources']=[r['id'] for r in included]
+            item.update(text=combined,hash=digest(combined),access='Combined tool-observed search excerpts; full post not accessed')
+            item['version_id']=version(item)
+            expires=min([item['expires']]+[r['expires'] for r in included])
+            with desk.store.transaction():
+                desk.store.update(actor,item['id'],item)
+                desk.store.db.execute('UPDATE objects SET expires=MIN(expires,?) WHERE id=?',(expires,item['id']))
+
+
 def complete(desk,actor,monitor_id,cancel):
     desk.store.authorize(actor,owner=True);require_live(desk.s)
     monitor=desk.store.get(actor,monitor_id,'monitor');at=time.time()
     rows=lambda:project_articles(desk.store,actor,monitor,at)['rows']
     attempted=[];error=None
     try:
+        if cancel.is_set():return []
+        combine_social_evidence(desk,actor,monitor,rows())
         read_sources(desk,actor,monitor,rows(),cancel)
         current=rows();total=len(current)
         pending=[r for r in current if not r.get('analysis') or r.get('analysis_scope_key')!=scope_key(monitor) or r.get('analysis_key')!=desk.analysis_key(actor,r,monitor)]
@@ -100,6 +134,9 @@ def complete(desk,actor,monitor_id,cancel):
         if runs:
             run=runs[0];run.update(assessed_count=len(current)-remaining,pending_count=remaining,unique_count=len(current),outcome=outcome,
                 assessment_complete=not remaining and not error and not cancel.is_set(),checked=time.time())
+            if run.get('path')=='Codex native web':
+                from .research import platform_summary
+                run['platforms']=platform_summary(monitor,current,run.get('statuses',[]),run.get('followups',[]))
             if error:
                 if run.get('error') and not run.get('assessment_error'):run['collection_error']=run['error']
                 run['assessment_error']=error;run['error']=error

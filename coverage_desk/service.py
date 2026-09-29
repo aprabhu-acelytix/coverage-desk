@@ -356,7 +356,7 @@ class Desk:
 
     def planned_research(self,actor,monitor_id,cancel,path='AI-planned Brave'):
         from dataclasses import replace
-        from .research import registry,search_tasks,search_statuses,event_queries
+        from .research import registry,search_tasks,search_statuses,event_queries,initial_tasks,followup_tasks,platform_summary
         from .discovery import finding_selection
         self.store.authorize(actor,owner=True);require_live(self.s)
         if not self.analyzer:raise DeskError('AI unavailable. Run the runtime status helper.')
@@ -381,19 +381,42 @@ class Desk:
             self.store.update(actor,run['id'],run)
             if path=='Codex native web':
                 self.progress(actor,{'stage':'Searching selected sources','retained':0})
-                envelope=self.analyzer.discover(scope,tasks[:self.s.calls],cancel)
-                statuses=search_statuses(tasks,envelope.get('observed',[]))
-                rows=registry(envelope)
-                for row in rows:
-                    event=next((e for e in envelope.get('observed',[]) if e.get('id')==row['provenance'].get('event_id')), {})
-                    queries=event_queries(event)
-                    row['provenance']['query']='; '.join(queries)
-                    row['provenance']['targets']=[t['target'] for t in tasks if any(t['query'].lower().split()==q.lower().split() for q in queries)]
-                    row['provenance']['task_order']=next((i for i,t in enumerate(tasks) if t['query'] in queries),len(tasks))
-                persist(rows)
-                run.update(observed_actions=[{'id':e.get('id'),'query':e.get('query'),'action':e.get('action'),
-                    'returned_results':len(e.get('results') or [])} for e in envelope.get('observed',[])],
-                    error=envelope.get('interrupted',''),limited=envelope.get('limited',False),reserved_source_slots=min(len(tasks),self.s.calls)+1)
+                planned=initial_tasks(tasks,self.s.calls);observed=[];followups=[]
+                def discover(batch,pass_number):
+                    nonlocal statuses
+                    run['reserved_source_slots']=run.get('reserved_source_slots',0)+len(batch)+1
+                    self.store.update(actor,run['id'],run)
+                    envelope=self.analyzer.discover(scope,batch,cancel)
+                    # Fresh runtime threads can reuse item IDs; namespace passes.
+                    events=[{**e,'id':f"{pass_number}:"+str(e.get('id',''))} for e in envelope.get('observed',[])]
+                    observed.extend(events)
+                    statuses=search_statuses(planned,observed)
+                    rows=registry({'observed':events})
+                    for row in rows:
+                        event=next((e for e in events if e['id']==row['provenance'].get('event_id')), {})
+                        queries=event_queries(event)
+                        row['provenance']['query']='; '.join(queries)
+                        row['provenance']['targets']=[t['target'] for t in planned if any(t['query'].lower().split()==q.lower().split() for q in queries)]
+                        row['provenance']['task_order']=next((i for i,t in enumerate(planned) if t['query'] in queries),len(planned))
+                    persist(rows)
+                    run.update(observed_actions=[{'id':e.get('id'),'query':e.get('query'),'action':e.get('action'),
+                        'returned_results':len(e.get('results') or [])} for e in observed],
+                        error=envelope.get('interrupted',''),limited=envelope.get('limited',False))
+                    self.store.update(actor,run['id'],run)
+                    return envelope
+                envelope=discover(planned,1)
+                # Each pass reserves its cancellation boundary. Keep total search
+                # reservations <= calls + 1, including the second pass boundary.
+                if not cancel.is_set() and not envelope.get('limited') and not envelope.get('interrupted') and self.store.get(actor,monitor_id,'monitor')['revision']==monitor['revision']:
+                    followups=followup_tasks(monitor,scope,planned,observed,self.s.calls-len(planned)-1)
+                    if followups:
+                        planned=planned+followups;run.update(tasks=planned,followups=followups)
+                        self.progress(actor,{'stage':'Following up on social coverage','retained':len(saved)})
+                        discover(followups,2)
+                # Planned-but-unsearched original routes remain visible diagnostics.
+                omitted=[t for t in tasks if t not in planned]
+                statuses=search_statuses(planned+omitted,observed)
+                run.update(tasks=planned,platforms=platform_summary(monitor,saved,statuses,followups))
             else:
                 provider=Brave(replace(self.s,calls=1,pages=1,results=min(10,self.s.results)),self.store)
                 def save_page(rows,updates):
@@ -423,6 +446,7 @@ class Desk:
                 pending_count=len(rows)-assessed,counts=projection['counts'],checked=time.time(),
                 outcome='Cancelled' if cancel.is_set() else 'Previous scope' if not current else
                     'Needs review' if projection['counts']['review'] or run.get('error') else 'Assessed')
+            if path=='Codex native web':run['platforms']=platform_summary(monitor,rows,statuses,run.get('followups',[]))
             self.store.update(actor,run['id'],run)
             self.progress(actor,{'outcome':run['outcome'],'stage':'Search complete','retained':run['unique_count']})
             self.store.preferences(actor,{'snapshot':time.time(),'page':0,'history':'current','notice':'','explore_view':'overview','outlet':'','outlet_page':0})

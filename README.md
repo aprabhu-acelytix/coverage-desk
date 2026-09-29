@@ -138,3 +138,9 @@ Use **Mark relevant** on an uncertain finding to record your decision. This chan
 **Inspect > Edit finding** replaces the old Correct buttons. Change one detail at a time. **Inspect > Source details** explains the outlet's focus, editorial signals and priority, with supporting links. Established reporting appears before standard-priority findings; items are newest-first within each priority. **Outlet priority** lets the owner raise, lower or reset an exact website's priority with a reason. No AI runs when reviewing or sorting.
 
 The initial catalog covers ten reviewed outlets; other sites are explicitly unreviewed, not labeled unreliable. Priority is a transparent editorial convenience, not an independent trust certification. See [OUTLET_UX_VALIDATION.md](OUTLET_UX_VALIDATION.md) for scope and validation.
+## Public social search
+
+See [SOCIAL_SEARCH.md](SOCIAL_SEARCH.md) for platform coverage, adaptive follow-up,
+source-priority ordering and limitations. Select platforms in a search, add known
+public aliases/handles, refresh, then browse Articles by source. This is public
+web discovery, not exhaustive or authenticated social monitoring.

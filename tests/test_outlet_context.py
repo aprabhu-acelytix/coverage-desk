@@ -36,6 +36,10 @@ def test_established_reporting_precedes_newer_unreviewed_without_changing_counts
     assert data['rows'][0]['id']==known['id']
     assert data['article_count']==8 and data['outlet_count']==2
     assert {r['id'] for r in data['rows'][1:]}=={r['id'] for r in unknown}
+    from coverage_desk.discovery import finding_selection
+    selected=finding_selection(st,o,{'monitor':m['id'],'filter':'all','snapshot':time.time()})
+    assert selected['visible'][0]['id']==known['id']
+    assert len(selected['rows'])==8
     st.preferences(o,{'monitor':m['id'],'explore_view':'articles','coverage_state':'confirmed','page':0,'snapshot':time.time()})
     assert known['id'] in json.dumps(ui.home(d,o))
     st.preferences(o,{'page':1})

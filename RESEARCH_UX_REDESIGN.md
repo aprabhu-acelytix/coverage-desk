@@ -2,6 +2,8 @@
 
 # Coverage Desk — research quality and Slack experience redesign
 
+The bounded adaptive social search extension is specified in [SOCIAL_SEARCH.md](SOCIAL_SEARCH.md). It retains the existing provider, restrictions, assessment pipeline, filtering and source-priority rules.
+
 ## Objective
 
 Repair the existing application in `aprabhu-acelytix/coverage-desk`, rather than replacing it with another scaffold. The reviewed baseline is `4eccc07deb09d78cbb797431fcb0f8bc42e4d579` on `main`. Reconcile against the actual checkout before editing; do not reset newer work to this baseline.

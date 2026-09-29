@@ -217,7 +217,7 @@ def monitor_modal(m=None,expanded=False):
         actions(button('Fewer options' if expanded else 'More options','monitor_options','hide' if expanded else 'show'))]
     if expanded:
         blocks.extend([input_select('research_path','Research path',[('Codex web research','Codex native web'),('AI-planned Brave','AI-planned Brave')],m.get('research_path','Codex native web')),
-            input_text('aliases','Other names','\n'.join(m.get('aliases',[])),True,True,400,hint='Optional nicknames or abbreviations, one per line.'),
+            input_text('aliases','Other names or public handles','\n'.join(m.get('aliases',[])),True,True,400,hint='Optional nicknames, abbreviations or @handles, one per line. These help find differently worded posts.'),
             input_text('domains','Official website or handles',m.get('domains',''),True,False,500,hint='Helps AI identify the right subject; does not restrict source discovery.'),
             input_text('interpretation','What should this search include?',m.get('interpretation',''),True,True,500,hint='Optional editorial scope. Leave blank for general coverage of the subject.'),
             input_text('notes','Help identify the right subject',m.get('notes',''),True,True,1000,hint='Example: Patagonia the clothing brand, not the region.'),
@@ -338,6 +338,10 @@ def collection_modal(run):
             para(f"{run.get('unique_count',0)} unique findings from {run['count']} observations. {run.get('assessed_count',0)} assessed; {run.get('pending_count',0)} pending."),
             para('Dates: '+str(run['scope']['window']['start'] or 'Any time')+' to '+run['scope']['window']['end']),
             para('Assessments use retained search evidence and available public publisher excerpts. Missing publication dates stay in Needs attention. Requested source categories guide search; this is not an exhaustive search of every platform.')]
+        for item in run.get('platforms',[]):
+            blocks.append(para(source_label(item['platform'])+': '+item['status']+
+                f". {item['found']} retained unique findings; {item['assessed']} assessed; {item['excerpt_only']} with search excerpts; {item['metadata_only']} metadata only."+
+                (' Follow-up searched.' if item['followup'] else ' No second pass.')))
         for status in run.get('statuses',[]):
             detail=str(status['results'])+' returned'
             if status['target'] in PLATFORMS:detail+='; '+str(status.get('platform_matches',0))+' on this platform'
@@ -348,7 +352,7 @@ def collection_modal(run):
             if a.get('queries'):text='; '.join(a['queries'])
             blocks.append(para(str(text)+'\n'+str(event.get('returned_results',0))+' observed source results'))
         if run.get('error'):blocks.append(para(run['error']))
-        blocks.append(context('One source slot reserved per planned search plus one cancellation-boundary slot. Observable actions do not disclose the provider\'s internal request count. No automatic retries.'))
+        blocks.append(context('One source slot per planned search plus one cancellation-boundary slot per pass; both passes share the run allowance. Observable actions do not disclose the provider\'s internal request count. No automatic retries.'))
         return modal('Search details',blocks)
     blocks=[header(run.get('outcome','Collection details')),para(f"{run['count']} findings saved · Checked {time.strftime('%d %b, %H:%M UTC',time.gmtime(run['checked']))}")]
     if run.get('path')=='AI-planned Brave':

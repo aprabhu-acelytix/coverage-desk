@@ -8,6 +8,14 @@ from .sources import record
 import re
 
 
+def social_names(monitor):
+    """Owner-supplied public identity terms, never inferred account ownership."""
+    handles=re.findall(r'(?<![\w.])@[A-Za-z0-9_][A-Za-z0-9_.]{1,49}',monitor.get('domains',''))
+    values=[monitor['name']]+monitor.get('aliases',[])[:4]+handles[:3]
+    return list(dict.fromkeys(' '.join(re.sub(r'(?:site|after|before):\S+','',v,flags=re.I)
+        .replace('"',' ').replace('\u201c',' ').replace('\u201d',' ').split())[:120] for v in values if v.strip()))
+
+
 def search_tasks(monitor,plan,scope):
     """Cover every selected category; topic phrases are not Boolean requirements."""
     from .discovery import PLATFORMS
@@ -22,6 +30,17 @@ def search_tasks(monitor,plan,scope):
     for target in monitor['sources']:
         query=topic
         if target in PLATFORMS:
+            # Social posts often use a handle or short name without the campaign
+            # wording. Message criteria and private notes never enter queries.
+            names=social_names(monitor)
+            subject='('+' OR '.join(n for n in names if n)+')'
+            # Keep campaign focus separate from the later broad route. OR-ing
+            # the entire focus with a short brand collapses to brand-only search.
+            focus_terms=topic
+            for term in sorted(names,key=len,reverse=True):
+                focus_terms=re.sub(r'(?<!\w)'+re.escape(term)+r'(?!\w)',' ',focus_terms,flags=re.I)
+            if not monitor.get('campaign'):focus_terms=re.sub(r'\b(?:news|latest|coverage)\b',' ',focus_terms,flags=re.I)
+            query=subject+(' '+' '.join(focus_terms.split()) if focus_terms.strip() else '')
             domains=PLATFORMS[target][1]
             query+=' '+('('+ ' OR '.join('site:'+domain for domain in domains)+')' if len(domains)>1 else 'site:'+domains[0])
         elif target=='news':query+=' latest news'
@@ -48,8 +67,7 @@ def search_tasks(monitor,plan,scope):
         start=datetime.fromisoformat(window['start'])
         if (end-start).days<=62:
             target='news' if 'news' in monitor['sources'] else 'web' if 'web' in monitor['sources'] else monitor['sources'][0]
-            query=topic+' '+end.strftime('%B %Y')
-            if target in PLATFORMS:query+=' site:'+PLATFORMS[target][1][0]
+            query=(next(t['query'] for t in tasks if t['target']==target) if target in PLATFORMS else topic)+' '+end.strftime('%B %Y')
             tasks.insert(0,{'query':query,'target':target,'purpose':'focus' if monitor.get('campaign') else 'broad'})
     for task in tasks:
         window=scope['window']
@@ -58,6 +76,98 @@ def search_tasks(monitor,plan,scope):
         if end.time().isoformat()!='00:00:00':end+=timedelta(days=1)
         task['query']+=' before:'+end.date().isoformat()
     return tasks
+
+
+def initial_tasks(tasks,limit):
+    """Cover selected sites before spending spare capacity on adaptive work."""
+    from .discovery import PLATFORMS
+    if not any(t['target'] in PLATFORMS for t in tasks):return tasks[:limit]
+    seen=set();selected=[]
+    for task in tasks:
+        if task['target'] not in seen:
+            selected.append(task);seen.add(task['target'])
+    # Preserve a neutral reporting route when a campaign is present. Broad
+    # social discovery must not crowd established news coverage out of the run.
+    broad=next((t for t in tasks if t['purpose']=='broad' and t['target'] not in PLATFORMS and t not in selected),None)
+    if broad and len(selected)<limit-2:selected.append(broad)
+    return selected[:limit]
+
+
+def followup_tasks(monitor,scope,tasks,events,limit):
+    """One bounded second pass, selected from observed evidence, never prose."""
+    from .discovery import PLATFORMS,platform
+    from .models import canonical_url
+    if limit<=0:return []
+    statuses=search_statuses(tasks,events)
+    targets=[t for t in monitor['sources'] if t in PLATFORMS and
+             any(s['target']==t and s['requested'] for s in statuses)]
+    # Give sparse sites another route first; stable ties preserve user selection.
+    targets.sort(key=lambda t:sum(s['platform_matches'] for s in statuses if s['target']==t))
+    hits={t:[] for t in targets};seen=set()
+    for row in registry({'observed':[{**e,'type':'webSearch'} for e in events]}):
+        target=platform(row['url']);key=canonical_url(row['url'])
+        if target in hits and key not in seen:
+            hits[target].append(row);seen.add(key)
+    end=datetime.fromisoformat(scope['window']['end'])-timedelta(microseconds=1)
+    start=datetime.fromisoformat(scope['window']['start']) if scope['window']['start'] else None
+    month=(' '+end.strftime('%B %Y')) if start and (end-start).days<=62 else ''
+    def clean(value):
+        return ' '.join(re.sub(r'(?:site|after|before):\S+','',value,flags=re.I).replace('"',' ').split())[:120]
+    names=social_names(monitor)
+    subject='('+' OR '.join(dict.fromkeys(n for n in names if n))+')'
+    queues={}
+    for target in targets:
+        domain=PLATFORMS[target][1][0]
+        broad={'query':subject+' site:'+domain+month,'target':target,'purpose':'broad','date_strategy':'Verify publication after discovery'}
+        candidates=[]
+        original=next(t['query'] for t in tasks if t['target']==target)
+        relaxed=' '.join(re.sub(r'(?:after|before):\S+','',original,flags=re.I).split())
+        focused={'query':relaxed,'target':target,'purpose':'focus','date_strategy':'Verify publication after discovery'}
+        # URL-targeted search can expose additional indexed text without granting
+        # a scraper, browser login, or treating an attempted open as evidence.
+        def is_post(row):
+            path=urlsplit(row['url']).path.lower()
+            return any(part in path for part in ('/status/','/posts/','/pulse/','/feed/update/','/p/','/reel/','/video/','/videos/','/comments/','/shorts/','/watch','/permalink')) or urlsplit(row['url']).hostname=='youtu.be'
+        focus_words=[w.lower() for w in re.findall(r'\w{4,}',monitor.get('campaign','')) if w.lower() not in ('agent','launch','campaign','product','everything','possible')]
+        promising=next((r for r in hits[target] if is_post(r) and any(n.lower().lstrip('@') in (r['title']+' '+r['text']).lower()
+                          for n in names if len(n.lstrip('@'))>=3) and (not focus_words or any(w in (r['title']+' '+r['text']).lower() for w in focus_words))),None)
+        if promising:
+            candidates.append({'query':promising['url']+' '+clean(monitor['name']),
+                'target':target,'purpose':'evidence','source_url':promising['url'],'date_strategy':'Verify publication after discovery'})
+        if monitor.get('campaign'):candidates.append(focused)
+        candidates.append(broad)
+        if promising:
+            tags=list(dict.fromkeys(re.findall(r'(?<!\w)#[\w]{2,40}',promising['title']+' '+promising['text'])))[:2]
+            if tags:candidates.append({'query':clean(monitor['name'])+' '+' '.join(tags)+' site:'+domain+month,
+                'target':target,'purpose':'related','date_strategy':'Verify publication after discovery'})
+        queues[target]=candidates
+    result=[];used={t['query'] for t in tasks}
+    for round_number in range(4):
+        for target in targets:
+            queue=queues[target]
+            if round_number<len(queue) and queue[round_number]['query'] not in used:
+                task=queue[round_number];result.append(task);used.add(task['query'])
+                if len(result)>=limit:return result
+    return result
+
+
+def platform_summary(monitor,rows,statuses,followups):
+    from .discovery import PLATFORMS,platform
+    from .models import canonical_url
+    result=[]
+    for target in monitor['sources']:
+        if target not in PLATFORMS:continue
+        groups={}
+        for row in rows:
+            if platform(row['url'])==target:groups.setdefault(canonical_url(row['url']),[]).append(row)
+        attempted=any(s.get('target')==target and s.get('requested') for s in statuses)
+        result.append({'platform':target,'found':len(groups),
+            'assessed':sum(any(bool(r.get('analysis')) and not r.get('analysis_error') for r in group) for group in groups.values()),
+            'excerpt_only':sum(any(bool(r.get('text')) for r in group) for group in groups.values()),
+            'metadata_only':sum(not any(bool(r.get('text')) for r in group) for group in groups.values()),
+            'followup':any(t['target']==target for t in followups),
+            'status':'Public results found' if groups else 'No accessible results found' if attempted else 'Not searched'})
+    return result
 
 
 def event_queries(event):
@@ -117,7 +227,7 @@ def registry(envelope):
             except (DeskError,ValueError,AttributeError):continue
             text=hit.get('snippet')
             if not isinstance(text,str):text=''
-            published=None
+            published=None;precision='timestamp'
             # Only explicitly named provider publication metadata is accepted.
             for field in ('published_at','datePublished','publication_date'):
                 raw=hit.get(field)
@@ -125,6 +235,7 @@ def registry(envelope):
                 try:
                     parsed=datetime.fromisoformat(raw.replace('Z','+00:00'))
                     if parsed.tzinfo:published=parsed.isoformat();break
+                    if re.fullmatch(r'\d{4}-\d{2}-\d{2}',raw):published=raw;precision='day';break
                 except ValueError:pass
             row=record(hit.get('title') or url,url,text,'Codex web',
                 {'endpoint':'native web search','query':event.get('query',''),
@@ -133,7 +244,7 @@ def registry(envelope):
                  'result_rank':rank,
                  'verification':'Tool-observed excerpt; full page and publication date not inferred'},
                 published,access='tool-observed excerpt' if text else 'metadata only')
-            row.update(source_ref=hit.get('ref_id'),date_kind='publication' if published else 'unknown')
+            row.update(source_ref=hit.get('ref_id'),date_kind='publication' if published else 'unknown',date_precision=precision)
             rows.append(row)
     return rows
 

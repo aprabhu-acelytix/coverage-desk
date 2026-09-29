@@ -1,5 +1,7 @@
 # Codex runtime — personal ChatGPT sign-in
 
+Adaptive social discovery uses up to two existing `discover` operations, sharing the run allowance as described in [SOCIAL_SEARCH.md](SOCIAL_SEARCH.md). Each pass retains the same role isolation and one boundary reservation. The total reservation ceiling remains `calls + 1`; two-pass discovery therefore plans at most `calls - 1` searches. No runtime tool permissions or authentication interfaces change.
+
 This document changes how the app obtains AI analysis; it does not turn Coverage Desk into a chatbot or a public AI service. Implement one small adapter, not a general agent platform.
 
 ## 1. Supported route and boundary
